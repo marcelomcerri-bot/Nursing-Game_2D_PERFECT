@@ -1,164 +1,58 @@
 import * as Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, SCENES, EVENTS, MAP_COLS, MAP_ROWS, TILE_SIZE } from '../constants';
+import { GAME_WIDTH, GAME_HEIGHT, SCENES, EVENTS, MAP_COLS, MAP_ROWS, TILE_SIZE, CAREER_LEVELS } from '../constants';
 import { getLevelInfo } from '../data/gameData';
 import type { GameState } from '../data/gameData';
 import { generateMapTiles, ROOM_FLOOR_COLORS_HUD } from './HUDMinimapHelper';
 
+const MM_SCALE = 3;
+const MM_W = MAP_COLS * MM_SCALE;
+const MM_H = MAP_ROWS * MM_SCALE;
+const MM_X = GAME_WIDTH - 12 - MM_W;
+const MM_Y = 12;
+
 export class HUDScene extends Phaser.Scene {
+  // Time / shift
   private timeText!: Phaser.GameObjects.Text;
-  private energyBarBg!: Phaser.GameObjects.Graphics;
+  private dayText!: Phaser.GameObjects.Text;
+  private shiftIcon!: Phaser.GameObjects.Text;
+
+  // Energy
   private energyBarFill!: Phaser.GameObjects.Graphics;
+  private energyValText!: Phaser.GameObjects.Text;
+
+  // Stress
+  private stressBarFill!: Phaser.GameObjects.Graphics;
+  private stressValText!: Phaser.GameObjects.Text;
+
+  // Career
   private prestigeText!: Phaser.GameObjects.Text;
   private levelText!: Phaser.GameObjects.Text;
+  private careerBarFill!: Phaser.GameObjects.Graphics;
+
+  // Mission
   private missionText!: Phaser.GameObjects.Text;
-  private hintText!: Phaser.GameObjects.Text;
-  private dayText!: Phaser.GameObjects.Text;
+
+  // Minimap
   private minimapGfx!: Phaser.GameObjects.Graphics;
-  private playerDot!: Phaser.GameObjects.Rectangle;
+  private playerDot!: Phaser.GameObjects.Graphics;
   private mapData: number[][] = [];
-  private MM_SCALE = 3;
-  private MM_X = GAME_WIDTH - 16;
-  private MM_Y = 16;
+
+  // Hint + room
+  private hintText!: Phaser.GameObjects.Text;
   private roomLabel!: Phaser.GameObjects.Text;
   private roomLabelBg!: Phaser.GameObjects.Graphics;
+
+  // Alert banner
+  private alertBanner: Phaser.GameObjects.Container | null = null;
 
   constructor() { super({ key: SCENES.HUD, active: false }); }
 
   create() {
     this.mapData = generateMapTiles();
-    const MM_W = MAP_COLS * this.MM_SCALE;
-    const MM_H = MAP_ROWS * this.MM_SCALE;
-    const mm_rx = this.MM_X - MM_W;
-    const mm_ry = this.MM_Y;
-
-    // ── Minimap
-    const mmBg = this.add.graphics();
-    mmBg.fillStyle(0x2c3e50, 0.85);
-    mmBg.fillRoundedRect(mm_rx - 4, mm_ry - 4, MM_W + 8, MM_H + 8, 8);
-    mmBg.lineStyle(3, 0xf39c12, 1);
-    mmBg.strokeRoundedRect(mm_rx - 4, mm_ry - 4, MM_W + 8, MM_H + 8, 8);
-
-    this.minimapGfx = this.add.graphics();
-    this.drawMinimap(mm_rx, mm_ry);
-
-    this.playerDot = this.add.rectangle(mm_rx, mm_ry, 6, 6, 0xffffff).setDepth(5);
-    this.tweens.add({
-      targets: this.playerDot,
-      scaleX: 1.5, scaleY: 1.5,
-      alpha: 0.5,
-      duration: 500,
-      yoyo: true,
-      repeat: -1
-    });
-
-    this.add.text(mm_rx + MM_W / 2, mm_ry + MM_H + 12, 'MAPA HOSPITALAR', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '8px',
-      color: '#f39c12',
-      stroke: '#000',
-      strokeThickness: 2
-    }).setOrigin(0.5, 0);
-
-    // ── TOP BAR background
-    const topBar = this.add.graphics();
-    topBar.fillStyle(0x2c3e50, 0.9);
-    topBar.fillRoundedRect(16, 16, GAME_WIDTH - 200, 56, 12);
-    topBar.lineStyle(3, 0x1abc9c, 1);
-    topBar.strokeRoundedRect(16, 16, GAME_WIDTH - 200, 56, 12);
-
-    // ── Day / Shift indicator
-    const dayBg = this.add.graphics();
-    dayBg.fillStyle(0x1a252f, 1);
-    dayBg.fillRoundedRect(28, 26, 120, 36, 8);
-
-    this.dayText = this.add.text(88, 34, 'DIA 1\nMANHÃ', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '10px',
-      color: '#3498db',
-      align: 'center',
-      lineSpacing: 4
-    }).setOrigin(0.5);
-
-    // ── Time
-    this.timeText = this.add.text(160, 44, '08:00', {
-      fontFamily: "'VT323', monospace",
-      fontSize: '34px',
-      color: '#f1c40f',
-      stroke: '#000',
-      strokeThickness: 3
-    }).setOrigin(0, 0.5);
-
-    // ── Energy bar
-    const energyX = 260;
-    this.add.text(energyX, 44, '⚡', {
-      fontFamily: "'VT323', monospace",
-      fontSize: '26px',
-    }).setOrigin(0, 0.5);
-    
-    this.energyBarBg = this.add.graphics();
-    this.energyBarBg.fillStyle(0x1a252f, 1);
-    this.energyBarBg.fillRoundedRect(energyX + 30, 34, 150, 20, 10);
-    
-    this.energyBarFill = this.add.graphics();
-
-    this.add.text(energyX + 105, 44, 'ENERGIA', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '8px',
-      color: '#ffffff',
-    }).setOrigin(0.5, 0.5);
-
-    // ── Prestige
-    const prestigeBg = this.add.graphics();
-    prestigeBg.fillStyle(0x1a252f, 1);
-    prestigeBg.fillRoundedRect(470, 26, 180, 36, 8);
-
-    this.prestigeText = this.add.text(560, 36, '⭐ 0 pts', {
-      fontFamily: "'VT323', monospace",
-      fontSize: '24px',
-      color: '#f39c12',
-    }).setOrigin(0.5, 0.5);
-
-    this.levelText = this.add.text(560, 52, 'Estagiária', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '8px',
-      color: '#bdc3c7',
-    }).setOrigin(0.5, 0.5);
-
-    // ── Active mission indicator
-    const missionBg = this.add.graphics();
-    missionBg.fillStyle(0x1a252f, 1);
-    missionBg.fillRoundedRect(670, 26, 380, 36, 8);
-
-    this.missionText = this.add.text(860, 44, '', {
-      fontFamily: "'VT323', monospace",
-      fontSize: '22px',
-      color: '#1abc9c',
-      align: 'center',
-    }).setOrigin(0.5, 0.5);
-
-    // ── Hint bar at bottom
-    const hintBg = this.add.graphics();
-    hintBg.fillStyle(0x2c3e50, 0.9);
-    hintBg.fillRoundedRect(GAME_WIDTH / 2 - 350, GAME_HEIGHT - 46, 700, 36, 18);
-    hintBg.lineStyle(2, 0xf39c12, 1);
-    hintBg.strokeRoundedRect(GAME_WIDTH / 2 - 350, GAME_HEIGHT - 46, 700, 36, 18);
-
-    this.hintText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 28, '', {
-      fontFamily: "'VT323', monospace",
-      fontSize: '22px',
-      color: '#f39c12',
-    }).setOrigin(0.5);
-
-    // ── Room label
-    this.roomLabelBg = this.add.graphics();
-    this.roomLabelBg.setAlpha(0);
-
-    this.roomLabel = this.add.text(GAME_WIDTH / 2, 120, '', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '18px',
-      color: '#ffffff',
-    }).setOrigin(0.5).setAlpha(0);
-    this.roomLabel.setShadow(3, 3, '#000', 0, false, true);
+    this.buildMinimap();
+    this.buildTopBar();
+    this.buildBottomHint();
+    this.buildRoomLabel();
 
     const gameScene = this.scene.get(SCENES.GAME);
     gameScene.events.on(EVENTS.HUD_UPDATE, this.onHudUpdate, this);
@@ -166,66 +60,242 @@ export class HUDScene extends Phaser.Scene {
     gameScene.events.on(EVENTS.ROOM_CHANGE, this.onRoomChange, this);
   }
 
-  private drawMinimap(ox: number, oy: number) {
+  // ── MINIMAP ───────────────────────────────────────────────────────────────
+  private buildMinimap() {
+    // Shadow
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.4);
+    shadow.fillRoundedRect(MM_X - 2, MM_Y - 2, MM_W + 16, MM_H + 24, 10);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a252f, 1);
+    bg.fillRoundedRect(MM_X - 6, MM_Y - 6, MM_W + 12, MM_H + 28, 10);
+    bg.lineStyle(2, 0xf39c12, 1);
+    bg.strokeRoundedRect(MM_X - 6, MM_Y - 6, MM_W + 12, MM_H + 28, 10);
+
+    this.minimapGfx = this.add.graphics();
+    this.drawMinimap();
+
+    // Player dot (animated)
+    this.playerDot = this.add.graphics().setDepth(5);
+
+    // Label
+    this.add.text(MM_X + MM_W / 2, MM_Y + MM_H + 8, 'MAPA HUAP', {
+      fontFamily: 'monospace', fontSize: '9px', color: '#f39c12', stroke: '#000', strokeThickness: 2,
+    }).setOrigin(0.5, 0);
+  }
+
+  private drawMinimap() {
     this.minimapGfx.clear();
-    const S = this.MM_SCALE;
     for (let r = 0; r < MAP_ROWS; r++) {
       for (let c = 0; c < MAP_COLS; c++) {
         const tid = this.mapData[r][c];
-        const col = ROOM_FLOOR_COLORS_HUD[tid] ?? 0x333333;
+        const col = ROOM_FLOOR_COLORS_HUD[tid] ?? 0x333344;
         this.minimapGfx.fillStyle(col, 1);
-        this.minimapGfx.fillRect(ox + c * S, oy + r * S, S, S);
+        this.minimapGfx.fillRect(MM_X + c * MM_SCALE, MM_Y + r * MM_SCALE, MM_SCALE, MM_SCALE);
       }
     }
   }
 
-  private onHudUpdate(data: {
-    state: GameState;
-    playerX: number;
-    playerY: number;
-    activeMission?: string;
-  }) {
+  // ── TOP BAR ───────────────────────────────────────────────────────────────
+  private buildTopBar() {
+    const barW = MM_X - 28;
+    const barH = 64;
+    const bx = 14, by = 12;
+
+    // Shadow
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.3);
+    shadow.fillRoundedRect(bx + 4, by + 4, barW, barH, 14);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0a1628, 0.96);
+    bg.fillRoundedRect(bx, by, barW, barH, 14);
+    bg.lineStyle(2, 0x1abc9c, 0.8);
+    bg.strokeRoundedRect(bx, by, barW, barH, 14);
+
+    // ── Section: Day/Time ──
+    const secBg1 = this.add.graphics();
+    secBg1.fillStyle(0x152840, 1);
+    secBg1.fillRoundedRect(bx + 8, by + 7, 128, barH - 14, 8);
+
+    this.shiftIcon = this.add.text(bx + 16, by + 14, '☀️', { fontSize: '20px' });
+
+    this.dayText = this.add.text(bx + 42, by + 14, 'DIA 1', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#3498db',
+    });
+
+    this.timeText = this.add.text(bx + 42, by + 30, '08:00', {
+      fontFamily: "'VT323', monospace", fontSize: '28px', color: '#f1c40f',
+    });
+
+    // ── Section: Energy ──
+    const secBg2 = this.add.graphics();
+    secBg2.fillStyle(0x152840, 1);
+    secBg2.fillRoundedRect(bx + 148, by + 7, 178, barH - 14, 8);
+
+    this.add.text(bx + 156, by + 13, '⚡ ENERGIA', {
+      fontFamily: 'monospace', fontSize: '8px', color: '#2ecc71',
+    });
+
+    const energyBg = this.add.graphics();
+    energyBg.fillStyle(0x0a1628, 1);
+    energyBg.fillRoundedRect(bx + 156, by + 30, 130, 14, 7);
+
+    this.energyBarFill = this.add.graphics();
+
+    this.energyValText = this.add.text(bx + 220, by + 23, '100%', {
+      fontFamily: "'VT323', monospace", fontSize: '14px', color: '#2ecc71',
+    }).setOrigin(0.5, 0);
+
+    // ── Section: Stress ──
+    const secBg3 = this.add.graphics();
+    secBg3.fillStyle(0x152840, 1);
+    secBg3.fillRoundedRect(bx + 338, by + 7, 168, barH - 14, 8);
+
+    this.add.text(bx + 346, by + 13, '😰 ESTRESSE', {
+      fontFamily: 'monospace', fontSize: '8px', color: '#e74c3c',
+    });
+
+    const stressBg = this.add.graphics();
+    stressBg.fillStyle(0x0a1628, 1);
+    stressBg.fillRoundedRect(bx + 346, by + 30, 120, 14, 7);
+
+    this.stressBarFill = this.add.graphics();
+
+    this.stressValText = this.add.text(bx + 406, by + 23, '0%', {
+      fontFamily: "'VT323', monospace", fontSize: '14px', color: '#e74c3c',
+    }).setOrigin(0.5, 0);
+
+    // ── Section: Career ──
+    const secBg4 = this.add.graphics();
+    secBg4.fillStyle(0x152840, 1);
+    secBg4.fillRoundedRect(bx + 518, by + 7, 200, barH - 14, 8);
+
+    this.prestigeText = this.add.text(bx + 526, by + 13, '⭐ 0 pts', {
+      fontFamily: "'VT323', monospace", fontSize: '22px', color: '#f39c12',
+    });
+
+    this.levelText = this.add.text(bx + 526, by + 36, 'Estagiária', {
+      fontFamily: 'monospace', fontSize: '8px', color: '#95a5a6',
+    });
+
+    const careerBg = this.add.graphics();
+    careerBg.fillStyle(0x0a1628, 1);
+    careerBg.fillRoundedRect(bx + 526, by + 48, 180, 8, 4);
+
+    this.careerBarFill = this.add.graphics();
+
+    // ── Section: Active Mission ──
+    const missionW = barW - 728;
+    if (missionW > 80) {
+      const secBg5 = this.add.graphics();
+      secBg5.fillStyle(0x152840, 1);
+      secBg5.fillRoundedRect(bx + 730, by + 7, missionW - 16, barH - 14, 8);
+
+      this.add.text(bx + 738, by + 13, '📋 MISSÃO ATIVA', {
+        fontFamily: 'monospace', fontSize: '8px', color: '#1abc9c',
+      });
+
+      this.missionText = this.add.text(bx + 738, by + 28, '', {
+        fontFamily: "'VT323', monospace", fontSize: '20px', color: '#1abc9c',
+        wordWrap: { width: missionW - 32 },
+      });
+    } else {
+      // Fallback if not enough space
+      this.missionText = this.add.text(0, 0, '').setVisible(false);
+    }
+  }
+
+  // ── BOTTOM HINT ───────────────────────────────────────────────────────────
+  private buildBottomHint() {
+    const W = 720, H = 34;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0a1628, 0.92);
+    bg.fillRoundedRect(GAME_WIDTH / 2 - W / 2, GAME_HEIGHT - H - 10, W, H, 17);
+    bg.lineStyle(2, 0xf39c12, 0.7);
+    bg.strokeRoundedRect(GAME_WIDTH / 2 - W / 2, GAME_HEIGHT - H - 10, W, H, 17);
+
+    this.hintText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - H / 2 - 10,
+      'WASD/Setas: Mover  |  SHIFT: Correr  |  E: Interagir  |  M: Missões  |  ESC: Menu', {
+        fontFamily: "'VT323', monospace", fontSize: '19px', color: '#f39c12',
+      }).setOrigin(0.5);
+  }
+
+  // ── ROOM LABEL ────────────────────────────────────────────────────────────
+  private buildRoomLabel() {
+    this.roomLabelBg = this.add.graphics().setAlpha(0);
+    this.roomLabel = this.add.text(GAME_WIDTH / 2, 115, '', {
+      fontFamily: "'Press Start 2P', monospace", fontSize: '14px', color: '#ffffff',
+    }).setOrigin(0.5).setAlpha(0);
+  }
+
+  // ── UPDATE HANDLERS ───────────────────────────────────────────────────────
+  private onHudUpdate(data: { state: GameState; playerX: number; playerY: number; activeMission?: string }) {
     const { state, playerX, playerY, activeMission } = data;
 
-    // Time
-    const totalMin = Math.floor(state.gameTime) % (24 * 60);
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
+    // Time & day
+    const totalMin = Math.floor(state.gameTime) % 1440;
+    const h = Math.floor(totalMin / 60), m = totalMin % 60;
     this.timeText.setText(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
 
-    // Shift
     const shiftName = h >= 7 && h < 15 ? 'MANHÃ' : h >= 15 && h < 23 ? 'TARDE' : 'NOITE';
-    this.dayText.setText(`DIA ${state.day}\n${shiftName}`);
-    const dayColors = { 'MANHÃ': '#3498db', 'TARDE': '#e67e22', 'NOITE': '#9b59b6' };
-    this.dayText.setColor(dayColors[shiftName as keyof typeof dayColors] || '#fff');
+    this.dayText.setText(`DIA ${state.day} · ${shiftName}`);
+    this.shiftIcon.setText(h >= 7 && h < 15 ? '☀️' : h >= 15 && h < 23 ? '🌆' : '🌙');
 
     // Energy bar
-    const energyPct = Math.max(0, Math.min(1, state.energy / 100));
-    const barColor = energyPct > 0.5 ? 0x2ecc71 : energyPct > 0.25 ? 0xf1c40f : 0xe74c3c;
-    
+    const bx = 14, by = 12, barH = 64;
+    const ep = Math.max(0, Math.min(1, (state.energy || 0) / 100));
+    const eColor = ep > 0.5 ? 0x2ecc71 : ep > 0.25 ? 0xf1c40f : 0xe74c3c;
     this.energyBarFill.clear();
-    this.energyBarFill.fillStyle(barColor, 1);
-    this.energyBarFill.fillRoundedRect(260 + 30, 34, 150 * energyPct, 20, 10);
+    this.energyBarFill.fillStyle(eColor, 1);
+    this.energyBarFill.fillRoundedRect(bx + 156, by + 30, 130 * ep, 14, 7);
+    this.energyValText.setText(`${Math.round((state.energy || 0))}%`).setColor(
+      ep > 0.5 ? '#2ecc71' : ep > 0.25 ? '#f1c40f' : '#e74c3c'
+    );
 
-    // Prestige + level
-    this.prestigeText.setText(`⭐ ${state.prestige} pts`);
+    // Stress bar
+    const sp = Math.max(0, Math.min(1, (state.stress || 0) / 100));
+    const sColor = sp < 0.3 ? 0x2ecc71 : sp < 0.6 ? 0xf1c40f : 0xe74c3c;
+    this.stressBarFill.clear();
+    this.stressBarFill.fillStyle(sColor, 1);
+    this.stressBarFill.fillRoundedRect(bx + 346, by + 30, 120 * sp, 14, 7);
+    this.stressValText.setText(`${Math.round((state.stress || 0))}%`).setColor(
+      sp < 0.3 ? '#2ecc71' : sp < 0.6 ? '#f1c40f' : '#e74c3c'
+    );
+
+    // Career
     const lvInfo = getLevelInfo(state.prestige);
+    this.prestigeText.setText(`⭐ ${state.prestige} pts`);
     this.levelText.setText(lvInfo.title);
+
+    // Career progress bar
+    const cur = CAREER_LEVELS[lvInfo.level];
+    const nxt = CAREER_LEVELS[Math.min(lvInfo.level + 1, CAREER_LEVELS.length - 1)];
+    const careerPct = lvInfo.level >= CAREER_LEVELS.length - 1 ? 1
+      : (state.prestige - cur.minPrestige) / (nxt.minPrestige - cur.minPrestige);
+    this.careerBarFill.clear();
+    this.careerBarFill.fillStyle(0xf39c12, 1);
+    this.careerBarFill.fillRoundedRect(bx + 526, by + 48, 180 * Math.min(1, careerPct), 8, 4);
 
     // Active mission
     if (activeMission) {
-      this.missionText.setText(`📋 ${activeMission}`);
+      this.missionText.setText(activeMission).setColor('#1abc9c');
     } else {
-      this.missionText.setText('Nenhuma missão ativa');
-      this.missionText.setColor('#7f8c8d');
+      this.missionText.setText('Nenhuma ativa — pressione M').setColor('#636e72');
     }
 
     // Minimap player dot
-    const MM_W = MAP_COLS * this.MM_SCALE;
-    const mm_rx = this.MM_X - MM_W;
-    const dotX = mm_rx + (playerX / TILE_SIZE) * this.MM_SCALE;
-    const dotY = this.MM_Y + (playerY / TILE_SIZE) * this.MM_SCALE;
-    this.playerDot.setPosition(dotX, dotY);
+    this.playerDot.clear();
+    const dotX = MM_X + (playerX / TILE_SIZE) * MM_SCALE;
+    const dotY = MM_Y + (playerY / TILE_SIZE) * MM_SCALE;
+    const pulse = 0.5 + 0.5 * Math.sin(this.time.now / 300);
+    this.playerDot.fillStyle(0xffffff, 1);
+    this.playerDot.fillCircle(dotX, dotY, 3);
+    this.playerDot.fillStyle(0x1abc9c, pulse);
+    this.playerDot.fillCircle(dotX, dotY, 5);
   }
 
   private onHint(msg: string) {
@@ -233,37 +303,29 @@ export class HUDScene extends Phaser.Scene {
   }
 
   private onRoomChange(roomName: string) {
+    this.tweens.killTweensOf([this.roomLabel, this.roomLabelBg]);
+
     this.roomLabel.setText(roomName);
-    const tw = this.roomLabel.width + 40;
-    
+    const tw = this.roomLabel.width + 48;
+
     this.roomLabelBg.clear();
-    this.roomLabelBg.fillStyle(0x2c3e50, 0.9);
-    this.roomLabelBg.fillRoundedRect(GAME_WIDTH/2 - tw/2, 120 - 24, tw, 48, 12);
+    this.roomLabelBg.fillStyle(0x0a1628, 0.95);
+    this.roomLabelBg.fillRoundedRect(GAME_WIDTH / 2 - tw / 2, 100, tw, 36, 12);
     this.roomLabelBg.lineStyle(3, 0x1abc9c, 1);
-    this.roomLabelBg.strokeRoundedRect(GAME_WIDTH/2 - tw/2, 120 - 24, tw, 48, 12);
+    this.roomLabelBg.strokeRoundedRect(GAME_WIDTH / 2 - tw / 2, 100, tw, 36, 12);
 
-    this.roomLabelBg.setAlpha(1);
-    this.roomLabel.setAlpha(1);
-    
-    this.roomLabelBg.setY(-20);
-    this.roomLabel.setY(100);
-
-    this.tweens.killTweensOf([this.roomLabelBg, this.roomLabel]);
+    this.roomLabelBg.setY(-40).setAlpha(0);
+    this.roomLabel.setY(80).setAlpha(0);
 
     this.tweens.add({
-      targets: [this.roomLabelBg, this.roomLabel],
-      y: '+=20',
-      duration: 400,
-      ease: 'Back.easeOut',
+      targets: [this.roomLabelBg, this.roomLabel], y: '+=40', alpha: 1,
+      duration: 350, ease: 'Back.easeOut',
       onComplete: () => {
         this.tweens.add({
-          targets: [this.roomLabelBg, this.roomLabel],
-          alpha: 0,
-          y: '-=10',
-          duration: 500,
-          delay: 2000,
+          targets: [this.roomLabelBg, this.roomLabel], alpha: 0, y: '-+=12',
+          duration: 500, delay: 2500,
         });
-      }
+      },
     });
   }
 }

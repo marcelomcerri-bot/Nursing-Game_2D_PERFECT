@@ -2,14 +2,14 @@ import * as Phaser from 'phaser';
 import { TILE_SIZE, Direction } from '../constants';
 import type { NPCDef, GameState } from '../data/gameData';
 
-const NPC_SPEED = 60;
+const NPC_SPEED = 55;
 
 export class NPC extends Phaser.Physics.Arcade.Sprite {
   readonly def: NPCDef;
   private direction: Direction = 'down';
   private stepTimer = 0;
   private stepFrame = 0;
-  private readonly STEP_INTERVAL = 280;
+  private readonly STEP_INTERVAL = 300;
   private waypointIdx = 0;
   private waitTimer = 0;
   private isWaiting = false;
@@ -26,26 +26,43 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
     scene.add.existing(this);
     scene.physics.add.existing(this);
     this.setDepth(10);
+
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setSize(18, 20);
-    body.setOffset(3, 8);
+    body.setOffset(7, 18);
     body.setImmovable(false);
     this.setFrame(0);
 
-    // Name label
+    // Name label with role color
+    const roleColors: Record<string, string> = {
+      doctor: '#3498db', nurse: '#2ecc71', technician: '#9b59b6',
+      admin: '#f39c12', receptionist: '#1abc9c', other: '#bdc3c7',
+    };
+    const nameCol = roleColors[def.role] || '#ffffff';
+
     this.nameLabel = scene.add.text(x, y - 22, def.name, {
       fontFamily: "'VT323', monospace",
-      fontSize: '13px',
-      color: '#ffffff',
+      fontSize: '14px',
+      color: nameCol,
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5, 1).setDepth(20);
 
+    // Role tag
+    const roleTag = scene.add.text(x, y - 34, def.title, {
+      fontFamily: "'VT323', monospace",
+      fontSize: '11px',
+      color: '#aaaaaa',
+      stroke: '#000000',
+      strokeThickness: 2,
+    }).setOrigin(0.5, 1).setDepth(20).setVisible(false);
+    this.setData('roleTag', roleTag);
+
     // Exclamation mark
-    this.exclamationMark = scene.add.text(x, y - 36, '!', {
+    this.exclamationMark = scene.add.text(x, y - 42, '!', {
       fontFamily: "'Press Start 2P', monospace",
       fontSize: '14px',
-      color: '#ffff00',
+      color: '#ffdd00',
       stroke: '#000000',
       strokeThickness: 3,
     }).setOrigin(0.5, 1).setDepth(21).setVisible(false);
@@ -57,9 +74,7 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
   }
 
   updateMissionStatus(state: GameState) {
-    const anyActive = this.def.missionIds.some(id =>
-      !state.completedMissions.includes(id)
-    );
+    const anyActive = this.def.missionIds.some(id => !state.completedMissions.includes(id));
     this.setHasMission(anyActive);
   }
 
@@ -72,8 +87,7 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
         this.isWaiting = false;
         this.waypointIdx = (this.waypointIdx + 1) % this.def.patrolPoints.length;
       }
-      const body = this.body as Phaser.Physics.Arcade.Body;
-      body.setVelocity(0, 0);
+      (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       this.updateFrame(delta, false);
       this.updateLabels();
       return;
@@ -82,23 +96,19 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
     const target = this.def.patrolPoints[this.waypointIdx];
     const tx = (target.col + 0.5) * TILE_SIZE;
     const ty = (target.row + 0.5) * TILE_SIZE;
-    const dx = tx - this.x;
-    const dy = ty - this.y;
+    const dx = tx - this.x, dy = ty - this.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
 
     if (dist < 4) {
-      const body = this.body as Phaser.Physics.Arcade.Body;
-      body.setVelocity(0, 0);
-      this.setX(tx);
-      this.setY(ty);
+      (this.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
+      this.setPosition(tx, ty);
       this.isWaiting = true;
-      this.waitTimer = Phaser.Math.Between(1200, 2800);
+      this.waitTimer = Phaser.Math.Between(1000, 3000);
       this.updateFrame(delta, false);
     } else {
       const vx = (dx / dist) * NPC_SPEED;
       const vy = (dy / dist) * NPC_SPEED;
-      const body = this.body as Phaser.Physics.Arcade.Body;
-      body.setVelocity(vx, vy);
+      (this.body as Phaser.Physics.Arcade.Body).setVelocity(vx, vy);
 
       if (Math.abs(vx) > Math.abs(vy)) {
         this.direction = vx > 0 ? 'right' : 'left';
@@ -112,14 +122,18 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
   }
 
   private updateLabels() {
-    const offsetY = -this.displayHeight / 2;
-    this.nameLabel?.setPosition(this.x, this.y + offsetY - 2);
-    this.exclamationMark?.setPosition(this.x, this.y + offsetY - 14);
+    const offsetY = -this.displayHeight / 2 - 4;
+    this.nameLabel?.setPosition(this.x, this.y + offsetY);
 
-    // Float the exclamation mark
+    const roleTag = this.getData('roleTag') as Phaser.GameObjects.Text | null;
+    roleTag?.setPosition(this.x, this.y + offsetY - 12);
+
+    const exclY = this.y + offsetY - (roleTag ? 22 : 10);
+    this.exclamationMark?.setPosition(this.x, exclY);
+
     if (this.exclamationMark?.visible) {
       const floatY = Math.sin(this.scene.time.now / 400) * 3;
-      this.exclamationMark.setY(this.y + offsetY - 14 + floatY);
+      this.exclamationMark.setY(exclY + floatY);
     }
   }
 
@@ -152,6 +166,7 @@ export class NPC extends Phaser.Physics.Arcade.Sprite {
   destroy(fromScene?: boolean) {
     this.nameLabel?.destroy();
     this.exclamationMark?.destroy();
+    (this.getData('roleTag') as Phaser.GameObjects.Text | null)?.destroy();
     super.destroy(fromScene);
   }
 }

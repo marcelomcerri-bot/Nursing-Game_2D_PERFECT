@@ -1,21 +1,22 @@
 import * as Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, SCENES, EVENTS } from '../constants';
-import type { DialogueDef, GameState } from '../data/gameData';
+import { GAME_WIDTH, GAME_HEIGHT, SCENES } from '../constants';
+import type { DialogueDef, GameState, NPCDef } from '../data/gameData';
 import { MISSIONS } from '../data/gameData';
-import type { NPCDef } from '../data/gameData';
 
-const BOX_H = 180;
-const BOX_Y = GAME_HEIGHT - BOX_H - 20;
-const CHAR_INTERVAL = 25; // ms per character
+const BOX_H = 200;
+const BOX_Y = GAME_HEIGHT - BOX_H - 24;
+const CHAR_INTERVAL = 22;
 
 interface DialogData {
   npcDef: NPCDef;
   dialogue: DialogueDef;
   state: GameState;
+  onClose: (s: Partial<GameState>) => void;
 }
 
 export class DialogScene extends Phaser.Scene {
   private boxContainer!: Phaser.GameObjects.Container;
+  private choiceArea!: Phaser.GameObjects.Container;
   private bodyText!: Phaser.GameObjects.Text;
   private choiceButtons: Phaser.GameObjects.Container[] = [];
   private cursor!: Phaser.GameObjects.Text;
@@ -29,11 +30,11 @@ export class DialogScene extends Phaser.Scene {
   private isTyping = false;
   private showingChoices = false;
   private overlay!: Phaser.GameObjects.Rectangle;
-  private onClose!: (newState: Partial<GameState>) => void;
+  private onClose!: (s: Partial<GameState>) => void;
 
   constructor() { super({ key: SCENES.DIALOG, active: false }); }
 
-  init(data: DialogData & { onClose: (s: Partial<GameState>) => void }) {
+  init(data: DialogData) {
     this.npcDef = data.npcDef;
     this.dialogue = data.dialogue;
     this.state = { ...data.state };
@@ -47,117 +48,119 @@ export class DialogScene extends Phaser.Scene {
   }
 
   create() {
-    // ── Overlay
-    this.overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x2c3e50, 0.4);
+    // Dimmer overlay
+    this.overlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.45);
+
+    const W = GAME_WIDTH - 60;
+    const boxX = GAME_WIDTH / 2, boxY = BOX_Y + BOX_H / 2;
 
     this.boxContainer = this.add.container(0, 0);
 
-    // ── Main Box
-    const W = GAME_WIDTH - 80;
-    const boxX = GAME_WIDTH / 2;
-    const boxY = BOX_Y + BOX_H / 2;
-
+    // ── Shadow + main box
     const shadow = this.add.graphics();
-    shadow.fillStyle(0x000000, 0.3);
-    shadow.fillRoundedRect(boxX - W/2 + 6, boxY - BOX_H/2 + 6, W, BOX_H, 16);
+    shadow.fillStyle(0x000000, 0.35);
+    shadow.fillRoundedRect(boxX - W / 2 + 8, boxY - BOX_H / 2 + 8, W, BOX_H, 20);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0xecf0f1, 1);
-    bg.fillRoundedRect(boxX - W/2, boxY - BOX_H/2, W, BOX_H, 16);
-    bg.fillStyle(0xffffff, 0.3);
-    bg.fillRoundedRect(boxX - W/2, boxY - BOX_H/2, W, BOX_H * 0.4, 16);
-    
-    const border = this.add.graphics();
-    border.lineStyle(4, 0x34495e, 1);
-    border.strokeRoundedRect(boxX - W/2, boxY - BOX_H/2, W, BOX_H, 16);
+    bg.fillStyle(0x0d1f35, 1);
+    bg.fillRoundedRect(boxX - W / 2, boxY - BOX_H / 2, W, BOX_H, 20);
 
-    // ── Portrait Box
-    const pSize = 100;
-    const px = boxX - W/2 + 70;
+    // Header accent
+    const header = this.add.graphics();
+    header.fillStyle(0x152840, 1);
+    header.fillRoundedRect(boxX - W / 2, boxY - BOX_H / 2, W, 42, { tl: 20, tr: 20, bl: 0, br: 0 });
+
+    // Border
+    const border = this.add.graphics();
+    border.lineStyle(3, 0x1abc9c, 1);
+    border.strokeRoundedRect(boxX - W / 2, boxY - BOX_H / 2, W, BOX_H, 20);
+    // Accent line under header
+    border.lineStyle(2, 0x1abc9c, 0.4);
+    border.lineBetween(boxX - W / 2 + 20, boxY - BOX_H / 2 + 42, boxX + W / 2 - 20, boxY - BOX_H / 2 + 42);
+
+    // ── Portrait
+    const pSize = 72;
+    const px = boxX - W / 2 + 46;
     const py = boxY;
 
     const pBg = this.add.graphics();
-    pBg.fillStyle(0x34495e, 1);
-    pBg.fillRoundedRect(px - pSize/2 - 4, py - pSize/2 - 4, pSize + 8, pSize + 8, 12);
-    
-    // Pattern background for portrait
-    const pInner = this.add.graphics();
-    pInner.fillStyle(0xecf0f1, 1);
-    pInner.fillRoundedRect(px - pSize/2, py - pSize/2, pSize, pSize, 8);
-    for(let i=0; i<pSize; i+=10) {
-      pInner.lineStyle(1, 0xbdc3c7, 0.5);
-      pInner.lineBetween(px - pSize/2, py - pSize/2 + i, px + pSize/2, py - pSize/2 + i);
-      pInner.lineBetween(px - pSize/2 + i, py - pSize/2, px - pSize/2 + i, py + pSize/2);
-    }
+    pBg.fillStyle(0x152840, 1);
+    pBg.fillRoundedRect(px - pSize / 2 - 4, py - pSize / 2 - 4, pSize + 8, pSize + 8, 12);
+    pBg.lineStyle(2, 0x1abc9c, 0.8);
+    pBg.strokeRoundedRect(px - pSize / 2 - 4, py - pSize / 2 - 4, pSize + 8, pSize + 8, 12);
 
-    const portrait = this.add.image(px, py, 'portrait_' + this.npcDef.id).setDisplaySize(pSize - 10, pSize - 10);
+    const portrait = this.add.image(px, py, 'portrait_' + this.npcDef.id).setDisplaySize(pSize, pSize);
 
-    // ── Name Badge
-    const nameBg = this.add.graphics();
-    const nx = px + pSize/2 + 20;
-    const ny = boxY - BOX_H/2 + 25;
-    nameBg.fillStyle(0xe74c3c, 1);
-    nameBg.fillRoundedRect(nx, ny - 15, 240, 30, 8);
-    nameBg.lineStyle(2, 0xffffff, 1);
-    nameBg.strokeRoundedRect(nx, ny - 15, 240, 30, 8);
+    // ── Name tag in header
+    const nameX = boxX - W / 2 + 106;
+    const nameY = boxY - BOX_H / 2 + 21;
 
-    const nameText = this.add.text(nx + 120, ny, `${this.npcDef.name} - ${this.npcDef.title}`, {
+    const roleColors: Record<string, string> = {
+      doctor: '#3498db', nurse: '#2ecc71', technician: '#9b59b6',
+      admin: '#f39c12', receptionist: '#1abc9c', other: '#bdc3c7',
+    };
+    const roleColor = roleColors[this.npcDef.role] || '#ffffff';
+
+    const nameTxt = this.add.text(nameX, nameY, this.npcDef.name, {
       fontFamily: "'Press Start 2P', monospace",
+      fontSize: '11px',
+      color: roleColor,
+    }).setOrigin(0, 0.5);
+
+    const titleTxt = this.add.text(nameX + nameTxt.width + 16, nameY, `· ${this.npcDef.title}`, {
+      fontFamily: 'monospace',
       fontSize: '10px',
-      color: '#ffffff',
-    }).setOrigin(0.5, 0.5);
+      color: '#7f8c8d',
+    }).setOrigin(0, 0.5);
+
+    // Close hint
+    const closeHint = this.add.text(boxX + W / 2 - 16, nameY, '[ESC] Fechar', {
+      fontFamily: 'monospace', fontSize: '9px', color: '#7f8c8d',
+    }).setOrigin(1, 0.5);
 
     // ── Body text
-    this.bodyText = this.add.text(
-      nx, ny + 30,
-      '',
-      {
-        fontFamily: "'VT323', monospace",
-        fontSize: '28px',
-        color: '#2c3e50',
-        wordWrap: { width: W - pSize - 120 },
-        lineSpacing: 4,
-      }
-    );
+    const textX = nameX;
+    const textY = boxY - BOX_H / 2 + 56;
+    const textMaxW = W - 160;
 
-    // ── Cursor
+    this.bodyText = this.add.text(textX, textY, '', {
+      fontFamily: "'VT323', monospace",
+      fontSize: '26px',
+      color: '#ecf0f1',
+      wordWrap: { width: textMaxW },
+      lineSpacing: 4,
+    });
+
+    // Cursor
     this.cursor = this.add.text(0, 0, '▼', {
       fontFamily: "'Press Start 2P', monospace",
-      fontSize: '12px',
-      color: '#e74c3c',
+      fontSize: '10px',
+      color: '#1abc9c',
     }).setVisible(false);
-    this.tweens.add({
-      targets: this.cursor,
-      alpha: 0,
-      duration: 400,
-      yoyo: true,
-      repeat: -1
-    });
+    this.tweens.add({ targets: this.cursor, alpha: 0, duration: 350, yoyo: true, repeat: -1 });
 
-    this.boxContainer.add([shadow, bg, border, pBg, pInner, portrait, nameBg, nameText, this.bodyText, this.cursor]);
+    this.boxContainer.add([shadow, bg, header, border, pBg, portrait, nameTxt, titleTxt, closeHint, this.bodyText, this.cursor]);
 
-    // ── Input
+    // Choice area (rendered separately, on top)
+    this.choiceArea = this.add.container(0, 0).setDepth(10);
+
+    // Input
     this.input.keyboard?.on('keydown-E', this.handleAdvance, this);
     this.input.keyboard?.on('keydown-SPACE', this.handleAdvance, this);
+    this.input.keyboard?.on('keydown-ESC', this.handleEsc, this);
     this.input.on('pointerdown', this.handleAdvance, this);
 
-    // Start typing first line
-    this.startLine(0);
+    // Animate in
+    this.boxContainer.setAlpha(0).setY(30);
+    this.tweens.add({ targets: this.boxContainer, alpha: 1, y: 0, duration: 300, ease: 'Back.easeOut' });
 
-    // Slide in
-    this.boxContainer.setY(100).setAlpha(0);
-    this.tweens.add({
-      targets: this.boxContainer,
-      y: 0,
-      alpha: 1,
-      duration: 300,
-      ease: 'Back.easeOut'
-    });
+    this.startLine(0);
   }
 
   private startLine(idx: number) {
     this.lineIdx = idx;
     this.charIdx = 0;
+    this.charTimer = 0;
     this.isTyping = true;
     this.bodyText.setText('');
     this.cursor.setVisible(false);
@@ -166,9 +169,9 @@ export class DialogScene extends Phaser.Scene {
 
   update(_t: number, delta: number) {
     if (!this.isTyping) {
-      if (this.cursor.visible) {
+      if (!this.showingChoices && this.cursor.visible) {
         const bRect = this.bodyText.getBounds();
-        this.cursor.setPosition(bRect.right + 5, bRect.bottom - 15);
+        this.cursor.setPosition(bRect.right + 4, bRect.bottom - 14);
       }
       return;
     }
@@ -184,7 +187,7 @@ export class DialogScene extends Phaser.Scene {
     }
 
     const bRect = this.bodyText.getBounds();
-    this.cursor.setPosition(bRect.right + 5, bRect.bottom - 15);
+    this.cursor.setPosition(bRect.right + 4, bRect.bottom - 14);
     this.cursor.setVisible(true);
 
     if (this.charIdx > currentLine.length) {
@@ -193,9 +196,7 @@ export class DialogScene extends Phaser.Scene {
 
       if (this.lineIdx >= this.lines.length - 1) {
         this.cursor.setVisible(false);
-        this.time.delayedCall(200, () => {
-          this.showChoices();
-        });
+        this.time.delayedCall(180, () => this.showChoices());
       }
     }
   }
@@ -204,13 +205,12 @@ export class DialogScene extends Phaser.Scene {
     if (this.showingChoices) return;
 
     if (this.isTyping) {
-      // Skip to end of current line
       this.bodyText.setText(this.lines[this.lineIdx]);
       this.charIdx = this.lines[this.lineIdx].length + 1;
       this.isTyping = false;
       if (this.lineIdx >= this.lines.length - 1) {
         this.cursor.setVisible(false);
-        this.time.delayedCall(200, () => this.showChoices());
+        this.time.delayedCall(180, () => this.showChoices());
       } else {
         this.cursor.setVisible(true);
       }
@@ -222,72 +222,81 @@ export class DialogScene extends Phaser.Scene {
     }
   }
 
+  private handleEsc() {
+    if (this.showingChoices) {
+      this.selectChoice(this.dialogue.choices.length - 1);
+    }
+  }
+
   private showChoices() {
     this.showingChoices = true;
     this.cursor.setVisible(false);
-    this.clearChoiceButtons();
 
     const choices = this.dialogue.choices;
-    const startY = BOX_Y + BOX_H - 30;
-    const btnW = Math.min(400, (GAME_WIDTH - 200) / choices.length - 16);
-    const totalW = choices.length * (btnW + 16) - 16;
-    const startX = (GAME_WIDTH - totalW) / 2;
+    const choiceY = BOX_Y - 16;
+    const btnH = 52;
+    const gap = 8;
 
     choices.forEach((choice, i) => {
-      const bx = startX + i * (btnW + 16) + btnW / 2;
-      const by = startY;
+      const btnW = (GAME_WIDTH - 80) / choices.length - gap;
+      const bx = 40 + i * (btnW + gap) + btnW / 2;
+      const by = choiceY - i * 0;
+      const cy = choiceY - (choices.length - 1 - i) * (btnH + gap);
 
-      const container = this.add.container(bx, by);
-      
-      const shadow = this.add.graphics();
-      shadow.fillStyle(0x000000, 0.2);
-      shadow.fillRoundedRect(-btnW/2 + 2, -22, btnW, 44, 8);
+      const cont = this.add.container(bx, cy);
 
-      const bgRect = this.add.graphics();
-      bgRect.fillStyle(0x34495e, 1);
-      bgRect.fillRoundedRect(-btnW/2, -24, btnW, 44, 8);
-      
-      const border = this.add.graphics();
-      border.lineStyle(2, 0x1abc9c, 1);
-      border.strokeRoundedRect(-btnW/2, -24, btnW, 44, 8);
+      const btnBg = this.add.graphics();
+      btnBg.fillStyle(0x0d1f35, 1);
+      btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+      btnBg.lineStyle(2, 0x1abc9c, 1);
+      btnBg.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
 
-      const num = this.add.text(-btnW / 2 + 12, 0, `${i + 1}.`, {
-        fontFamily: "'Press Start 2P', monospace",
-        fontSize: '10px',
-        color: '#f39c12',
+      const numTxt = this.add.text(-btnW / 2 + 14, 0, `${i + 1}.`, {
+        fontFamily: "'Press Start 2P', monospace", fontSize: '10px', color: '#f39c12',
       }).setOrigin(0, 0.5);
-      
-      const txt = this.add.text(btnW / 2 - 12, 0, choice.text, {
+
+      const choiceTxt = this.add.text(-btnW / 2 + 36, 0, choice.text, {
         fontFamily: "'VT323', monospace",
-        fontSize: '22px',
-        color: '#ffffff',
-        wordWrap: { width: btnW - 40 },
-        align: 'right',
-      }).setOrigin(1, 0.5);
+        fontSize: '21px',
+        color: '#ecf0f1',
+        wordWrap: { width: btnW - 50 },
+      }).setOrigin(0, 0.5);
 
-      container.add([shadow, bgRect, border, num, txt]);
-      container.setSize(btnW, 44).setInteractive({ cursor: 'pointer' });
+      // Tooltip
+      if (choice.tooltip) {
+        const tip = this.add.text(btnW / 2 - 12, -btnH / 2 + 8, `💡 ${choice.tooltip}`, {
+          fontFamily: 'monospace', fontSize: '8px', color: '#7f8c8d',
+          wordWrap: { width: btnW / 2 },
+        }).setOrigin(1, 0);
+      }
 
-      container.on('pointerover', () => {
-        this.tweens.add({ targets: container, scale: 1.05, y: by - 4, duration: 100 });
-        bgRect.clear(); bgRect.fillStyle(0x2c3e50, 1); bgRect.fillRoundedRect(-btnW/2, -24, btnW, 44, 8);
-        border.clear(); border.lineStyle(3, 0xf1c40f, 1); border.strokeRoundedRect(-btnW/2, -24, btnW, 44, 8);
+      const zone = this.add.zone(-btnW / 2, -btnH / 2, btnW, btnH).setOrigin(0).setInteractive({ cursor: 'pointer' });
+
+      zone.on('pointerover', () => {
+        btnBg.clear();
+        btnBg.fillStyle(0x1e3a5f, 1);
+        btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+        btnBg.lineStyle(3, 0xf1c40f, 1);
+        btnBg.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+        choiceTxt.setColor('#ffffff');
       });
-      container.on('pointerout', () => {
-        this.tweens.add({ targets: container, scale: 1, y: by, duration: 100 });
-        bgRect.clear(); bgRect.fillStyle(0x34495e, 1); bgRect.fillRoundedRect(-btnW/2, -24, btnW, 44, 8);
-        border.clear(); border.lineStyle(2, 0x1abc9c, 1); border.strokeRoundedRect(-btnW/2, -24, btnW, 44, 8);
+      zone.on('pointerout', () => {
+        btnBg.clear();
+        btnBg.fillStyle(0x0d1f35, 1);
+        btnBg.fillRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+        btnBg.lineStyle(2, 0x1abc9c, 1);
+        btnBg.strokeRoundedRect(-btnW / 2, -btnH / 2, btnW, btnH, 10);
+        choiceTxt.setColor('#ecf0f1');
       });
-      container.on('pointerdown', () => this.selectChoice(i));
-
-      // Number keys
+      zone.on('pointerdown', () => this.selectChoice(i));
       this.input.keyboard?.once(`keydown-${i + 1}`, () => this.selectChoice(i));
 
-      // Animate in
-      container.setAlpha(0).setY(by + 20);
-      this.tweens.add({ targets: container, alpha: 1, y: by, duration: 200, delay: i * 80, ease: 'Back.easeOut' });
+      cont.add([btnBg, numTxt, choiceTxt, zone]);
+      cont.setAlpha(0).setY(cy + 16);
+      this.tweens.add({ targets: cont, alpha: 1, y: cy, duration: 200, delay: i * 70, ease: 'Back.easeOut' });
 
-      this.choiceButtons.push(container);
+      this.choiceArea.add(cont);
+      this.choiceButtons.push(cont);
     });
   }
 
@@ -295,12 +304,10 @@ export class DialogScene extends Phaser.Scene {
     const choice = this.dialogue.choices[idx];
     let stateUpdate: Partial<GameState> = {};
 
-    // Apply effect
     if (choice.effect) {
       stateUpdate = choice.effect(this.state);
     }
 
-    // Apply mission effect
     if (choice.missionEffect) {
       const [missionId, action] = choice.missionEffect.split(':');
       const progress = { ...this.state.missionProgress };
@@ -309,14 +316,14 @@ export class DialogScene extends Phaser.Scene {
       if (action === 'start') {
         progress[missionId] = 1;
       } else if (action?.startsWith('step')) {
-        const step = parseInt(action.replace('step', ''), 10);
-        progress[missionId] = step;
+        progress[missionId] = parseInt(action.replace('step', ''), 10);
       } else if (action === 'complete') {
         const mission = MISSIONS.find(m => m.id === missionId);
         if (mission && !completed.includes(missionId)) {
           completed.push(missionId);
-          stateUpdate.prestige = (stateUpdate.prestige ?? this.state.prestige) + mission.prestige;
-          this.showPedagogyNote(mission.pedagogy, mission.title);
+          const basePrestige = stateUpdate.prestige ?? this.state.prestige;
+          stateUpdate.prestige = basePrestige + mission.prestige;
+          this.showPedagogyNote(mission.title, mission.pedagogy, mission.pedagogyRef, mission.prestige);
         }
       }
 
@@ -332,80 +339,73 @@ export class DialogScene extends Phaser.Scene {
     this.closeDialog(stateUpdate);
   }
 
-  private showPedagogyNote(text: string, title: string) {
-    const w = 600;
-    const h = 120;
-    const container = this.add.container(GAME_WIDTH/2, GAME_HEIGHT/2 - 100).setDepth(100);
+  private showPedagogyNote(missionTitle: string, pedagogy: string, pedagogyRef: string, pts: number) {
+    const W = 680, H = 160;
+    const c = this.add.container(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 110).setDepth(200);
 
     const shadow = this.add.graphics();
     shadow.fillStyle(0x000000, 0.4);
-    shadow.fillRoundedRect(-w/2 + 8, -h/2 + 8, w, h, 16);
+    shadow.fillRoundedRect(-W / 2 + 8, -H / 2 + 8, W, H, 16);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0xf1c40f, 1);
-    bg.fillRoundedRect(-w/2, -h/2, w, h, 16);
-    bg.lineStyle(4, 0xffffff, 1);
-    bg.strokeRoundedRect(-w/2, -h/2, w, h, 16);
+    bg.fillStyle(0x0a2015, 1);
+    bg.fillRoundedRect(-W / 2, -H / 2, W, H, 16);
+    bg.lineStyle(4, 0x2ecc71, 1);
+    bg.strokeRoundedRect(-W / 2, -H / 2, W, H, 16);
 
-    const iconBg = this.add.circle(-w/2 + 50, 0, 30, 0xffffff);
-    const icon = this.add.text(-w/2 + 50, 0, '🎓', { fontSize: '32px' }).setOrigin(0.5);
+    // Gold star header
+    const headerBg = this.add.graphics();
+    headerBg.fillStyle(0x1a4030, 1);
+    headerBg.fillRoundedRect(-W / 2, -H / 2, W, 36, { tl: 16, tr: 16, bl: 0, br: 0 });
 
-    const titleTxt = this.add.text(
-      -w/2 + 90, -h/2 + 20,
-      `SUCESSO: ${title}`,
-      { fontFamily: "'Press Start 2P', monospace", fontSize: '12px', color: '#d35400' }
-    );
+    const icon = this.add.text(-W / 2 + 20, -H / 2 + 18, '🎓', { fontSize: '20px' }).setOrigin(0, 0.5);
+    const titleTxt = this.add.text(-W / 2 + 50, -H / 2 + 18,
+      `MISSÃO CONCLUÍDA: ${missionTitle}  (+${pts} pts)`, {
+        fontFamily: "'Press Start 2P', monospace",
+        fontSize: '10px',
+        color: '#2ecc71',
+      }).setOrigin(0, 0.5);
 
-    const noteTxt = this.add.text(
-      -w/2 + 90, -h/2 + 50,
-      text,
-      {
-        fontFamily: "'VT323', monospace",
-        fontSize: '20px',
-        color: '#2c3e50',
-        wordWrap: { width: w - 110 },
-      }
-    );
+    const bodyTxt = this.add.text(-W / 2 + 20, -H / 2 + 52, pedagogy, {
+      fontFamily: "'VT323', monospace",
+      fontSize: '20px',
+      color: '#ecf0f1',
+      wordWrap: { width: W - 40 },
+    }).setOrigin(0, 0);
 
-    container.add([shadow, bg, iconBg, icon, titleTxt, noteTxt]);
-    
-    container.setScale(0.8).setAlpha(0);
+    const refTxt = this.add.text(-W / 2 + 20, H / 2 - 22, `📚 ${pedagogyRef}`, {
+      fontFamily: 'monospace',
+      fontSize: '9px',
+      color: '#27ae60',
+    }).setOrigin(0, 1);
+
+    c.add([shadow, bg, headerBg, icon, titleTxt, bodyTxt, refTxt]);
+    c.setScale(0.85).setAlpha(0);
+
     this.tweens.add({
-      targets: container,
-      scale: 1, alpha: 1,
-      duration: 400,
-      ease: 'Back.easeOut',
+      targets: c, scale: 1, alpha: 1, duration: 400, ease: 'Back.easeOut',
       onComplete: () => {
         this.tweens.add({
-          targets: container,
-          scale: 0.9, alpha: 0, y: '-=30',
-          duration: 400,
-          delay: 4000,
-          ease: 'Back.easeIn',
-          onComplete: () => container.destroy()
+          targets: c, alpha: 0, y: '-=20', duration: 500, delay: 5000,
+          onComplete: () => c.destroy(),
         });
-      }
+      },
     });
   }
 
   private closeDialog(stateUpdate: Partial<GameState>) {
     this.input.keyboard?.off('keydown-E', this.handleAdvance, this);
     this.input.keyboard?.off('keydown-SPACE', this.handleAdvance, this);
+    this.input.keyboard?.off('keydown-ESC', this.handleEsc, this);
+    this.input.off('pointerdown', this.handleAdvance, this);
 
     this.tweens.add({
-      targets: [this.boxContainer, this.overlay, ...this.choiceButtons],
-      y: '+=20',
-      alpha: 0,
-      duration: 200,
+      targets: [this.boxContainer, this.overlay, this.choiceArea],
+      alpha: 0, y: '+=16', duration: 220,
       onComplete: () => {
         this.scene.stop();
         this.onClose(stateUpdate);
       },
     });
-  }
-
-  private clearChoiceButtons() {
-    this.choiceButtons.forEach(b => b.destroy());
-    this.choiceButtons = [];
   }
 }

@@ -160,7 +160,7 @@ export class MenuScene extends Phaser.Scene {
     }).setOrigin(0.5).setShadow(1, 1, '#000', 2);
 
     // ── Version
-    this.add.text(GAME_WIDTH - 16, GAME_HEIGHT - 16, 'v2.0', {
+    this.add.text(GAME_WIDTH - 16, GAME_HEIGHT - 16, 'v3.0 HUAP', {
       fontFamily: "'VT323', monospace",
       fontSize: '18px',
       color: '#ffeaa7',
@@ -342,21 +342,25 @@ export class MenuScene extends Phaser.Scene {
     panel.strokeRoundedRect(GAME_WIDTH/2 - 300, GAME_HEIGHT/2 - 250, 600, 500, 16);
 
     const helpText = [
-      'COMO JOGAR',
+      'COMO JOGAR  —  HUAP/UFF',
       '',
       '🎮 WASD / Setas — Mover',
-      '💬 E — Falar com NPC',
-      '📋 M — Ver missões',
-      '⏸️ ESC — Pausar',
+      '🏃 SHIFT — Correr (consome energia)',
+      '💬 E — Falar com NPC / Interagir',
+      '📋 M — Ver missões e progresso',
+      '⏸️ ESC — Pausar / Voltar ao menu',
       '',
-      'Explore o hospital, fale com os NPCs',
+      'Explore o HUAP, fale com os profissionais',
       'e complete missões para ganhar Prestígio.',
       '',
-      'Cada missão traz feedback pedagógico',
-      'baseado na literatura de enfermagem.',
+      '🚨 CRISES: Eventos aleatórios precisam de',
+      'decisão rápida — escolha com cuidado!',
       '',
-      'Gerencie sua Energia — descanse',
-      'na Copa para recuperar.',
+      '⚡ Energia: descanse na Copa (+6/s)',
+      '😰 Estresse: reduza no jardim ou copa',
+      '',
+      'Feedback pedagógico baseado em:',
+      'Kurcgant · COFEN · ONA · OMS/PNSP',
       '',
       '  [ Clique para fechar ]',
     ].join('\n');

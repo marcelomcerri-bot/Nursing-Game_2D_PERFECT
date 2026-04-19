@@ -1,314 +1,430 @@
 import * as Phaser from 'phaser';
 import { TILE_SIZE, SCENES } from '../constants';
-import { createTilesetTexture } from '../data/gameData';
-import type { NPCDef } from '../data/gameData';
-import { NPC_DEFS } from '../data/gameData';
+import { createTilesetTexture, NPC_DEFS } from '../data/gameData';
 
-const SPRITE_W = 24;
-const SPRITE_H = 28;
-const SPRITE_FRAMES = 12; // 3 frames × 4 directions
+const SPR_W = 32;
+const SPR_H = 40;
+const FRAMES = 12;
 
-function drawCharacter(
-  ctx: CanvasRenderingContext2D,
-  frameIdx: number,
-  bodyColor: string,
-  coatColor: string,
-  hairColor: string,
-  skinColor: string
-) {
-  const x = frameIdx * SPRITE_W;
-  const dir = Math.floor(frameIdx / 3); // 0=down, 1=up, 2=left, 3=right
-  const step = frameIdx % 3;           // 0=idle, 1=step1, 2=step2
-
-  ctx.clearRect(x, 0, SPRITE_W, SPRITE_H);
-
-  // Soft shadow
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+// ── Canvas helper: rounded rect (fill) ────────────────────────────────────────
+function rrFill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (w < 0 || h < 0) return;
+  const rr = Math.min(r, w / 2, h / 2);
   ctx.beginPath();
-  ctx.ellipse(x + 12, SPRITE_H - 2, 8, 3, 0, 0, Math.PI * 2);
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
   ctx.fill();
-
-  // Helper for darkening hex colors
-  const darken = (color: string, amount: number) => {
-    let c = color.replace('#', '');
-    if (c.length === 3) c = c.split('').map(x => x + x).join('');
-    const num = parseInt(c, 16);
-    let r = (num >> 16) - amount;
-    let g = ((num >> 8) & 0x00FF) - amount;
-    let b = (num & 0x0000FF) - amount;
-    r = Math.max(0, r);
-    g = Math.max(0, g);
-    b = Math.max(0, b);
-    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
-  };
-
-  const skinDark = darken(skinColor, 30);
-  const coatDark = darken(coatColor, 30);
-  const pantsColor = '#4a5568';
-  const shoesColor = '#2d3748';
-
-  const bounce = step === 0 ? 0 : 1;
-  const legBounce1 = step === 1 ? -2 : 0;
-  const legBounce2 = step === 2 ? -2 : 0;
-
-  // Legs/Shoes
-  if (dir !== 1) { // down, left, right
-    // Left leg
-    ctx.fillStyle = pantsColor;
-    ctx.fillRect(x + 7, SPRITE_H - 10 + legBounce1, 4, 8 - legBounce1);
-    ctx.fillStyle = shoesColor;
-    ctx.fillRect(x + 7, SPRITE_H - 4 + legBounce1, 4, 3);
-    // Right leg
-    ctx.fillStyle = pantsColor;
-    ctx.fillRect(x + 13, SPRITE_H - 10 + legBounce2, 4, 8 - legBounce2);
-    ctx.fillStyle = shoesColor;
-    ctx.fillRect(x + 13, SPRITE_H - 4 + legBounce2, 4, 3);
-  } else { // up
-    ctx.fillStyle = pantsColor;
-    ctx.fillRect(x + 7, SPRITE_H - 10 + legBounce1, 4, 8 - legBounce1);
-    ctx.fillStyle = shoesColor;
-    ctx.fillRect(x + 7, SPRITE_H - 4 + legBounce1, 4, 3);
-    ctx.fillStyle = pantsColor;
-    ctx.fillRect(x + 13, SPRITE_H - 10 + legBounce2, 4, 8 - legBounce2);
-    ctx.fillStyle = shoesColor;
-    ctx.fillRect(x + 13, SPRITE_H - 4 + legBounce2, 4, 3);
-  }
-
-  // Torso / Coat
-  ctx.fillStyle = coatDark;
-  ctx.fillRect(x + 5, SPRITE_H - 20 - bounce, 14, 12);
-  ctx.fillStyle = coatColor;
-  ctx.fillRect(x + 6, SPRITE_H - 20 - bounce, 12, 11);
-
-  // V-neck & Undershirt
-  if (dir === 0) {
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(x + 10, SPRITE_H - 20 - bounce, 4, 5);
-    // Stethoscope
-    ctx.fillStyle = '#718096'; // gray
-    ctx.fillRect(x + 9, SPRITE_H - 19 - bounce, 1, 4);
-    ctx.fillRect(x + 14, SPRITE_H - 19 - bounce, 1, 4);
-    ctx.fillRect(x + 10, SPRITE_H - 15 - bounce, 4, 1);
-    // Pocket
-    ctx.fillStyle = coatDark;
-    ctx.fillRect(x + 14, SPRITE_H - 14 - bounce, 3, 3);
-  } else if (dir === 2) {
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(x + 8, SPRITE_H - 20 - bounce, 2, 5);
-  } else if (dir === 3) {
-    ctx.fillStyle = bodyColor;
-    ctx.fillRect(x + 14, SPRITE_H - 20 - bounce, 2, 5);
-  }
-
-  // Arms
-  ctx.fillStyle = coatColor;
-  if (dir === 2) {
-    const armOff = step === 0 ? 0 : (step === 1 ? 2 : -2);
-    ctx.fillRect(x + 9, SPRITE_H - 20 - bounce, 4, 8 + armOff);
-    // hand
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(x + 9, SPRITE_H - 12 - bounce + armOff, 4, 3);
-  } else if (dir === 3) {
-    const armOff = step === 0 ? 0 : (step === 1 ? 2 : -2);
-    ctx.fillRect(x + 11, SPRITE_H - 20 - bounce, 4, 8 + armOff);
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(x + 11, SPRITE_H - 12 - bounce + armOff, 4, 3);
-  } else {
-    const leftArmOff = step === 1 ? 2 : (step === 2 ? -2 : 0);
-    const rightArmOff = -leftArmOff;
-    // Left arm
-    ctx.fillStyle = coatDark;
-    ctx.fillRect(x + 3, SPRITE_H - 20 - bounce, 3, 8 + leftArmOff);
-    ctx.fillStyle = coatColor;
-    ctx.fillRect(x + 4, SPRITE_H - 20 - bounce, 2, 7 + leftArmOff);
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(x + 3, SPRITE_H - 13 - bounce + leftArmOff, 3, 3);
-    
-    // Right arm
-    ctx.fillStyle = coatDark;
-    ctx.fillRect(x + 18, SPRITE_H - 20 - bounce, 3, 8 + rightArmOff);
-    ctx.fillStyle = coatColor;
-    ctx.fillRect(x + 18, SPRITE_H - 20 - bounce, 2, 7 + rightArmOff);
-    ctx.fillStyle = skinColor;
-    ctx.fillRect(x + 18, SPRITE_H - 13 - bounce + rightArmOff, 3, 3);
-  }
-
-  // Head Base
-  ctx.fillStyle = skinDark;
-  ctx.fillRect(x + 6, SPRITE_H - 30 - bounce, 12, 11);
-  ctx.fillStyle = skinColor;
-  ctx.fillRect(x + 7, SPRITE_H - 30 - bounce, 10, 10);
-
-  // Eyes & Face
-  if (dir === 0) { // down
-    ctx.fillStyle = '#2d3748';
-    ctx.fillRect(x + 8, SPRITE_H - 25 - bounce, 2, 2); // left eye
-    ctx.fillRect(x + 14, SPRITE_H - 25 - bounce, 2, 2); // right eye
-    // blush
-    ctx.fillStyle = 'rgba(245, 101, 101, 0.4)';
-    ctx.fillRect(x + 7, SPRITE_H - 23 - bounce, 2, 1);
-    ctx.fillRect(x + 15, SPRITE_H - 23 - bounce, 2, 1);
-    // mouth
-    ctx.fillStyle = '#a0aec0';
-    ctx.fillRect(x + 11, SPRITE_H - 22 - bounce, 2, 1);
-  } else if (dir === 2) { // left
-    ctx.fillStyle = '#2d3748';
-    ctx.fillRect(x + 7, SPRITE_H - 25 - bounce, 2, 2);
-  } else if (dir === 3) { // right
-    ctx.fillStyle = '#2d3748';
-    ctx.fillRect(x + 15, SPRITE_H - 25 - bounce, 2, 2);
-  }
-
-  // Hair
-  const hairDark = darken(hairColor, 20);
-  ctx.fillStyle = hairDark;
-  ctx.fillRect(x + 5, SPRITE_H - 31 - bounce, 14, 5);
-  ctx.fillStyle = hairColor;
-  ctx.fillRect(x + 6, SPRITE_H - 32 - bounce, 12, 4);
-  
-  if (dir === 0) {
-    ctx.fillRect(x + 6, SPRITE_H - 28 - bounce, 2, 3);
-    ctx.fillRect(x + 16, SPRITE_H - 28 - bounce, 2, 3);
-  } else if (dir === 1) {
-    ctx.fillRect(x + 6, SPRITE_H - 28 - bounce, 12, 6);
-  } else if (dir === 2) {
-    ctx.fillRect(x + 6, SPRITE_H - 28 - bounce, 4, 5);
-    ctx.fillRect(x + 12, SPRITE_H - 28 - bounce, 4, 3);
-  } else if (dir === 3) {
-    ctx.fillRect(x + 14, SPRITE_H - 28 - bounce, 4, 5);
-    ctx.fillRect(x + 8, SPRITE_H - 28 - bounce, 4, 3);
-  }
 }
 
-function createCharTexture(
-  scene: Phaser.Scene,
-  key: string,
-  bodyColor: number,
-  coatColor: number,
-  hairColor: number,
-  skinColor: number = 0xf5c5a3
-) {
-  const toHex = (n: number) => '#' + n.toString(16).padStart(6, '0');
-  const ct = scene.textures.createCanvas(
-    key,
-    SPRITE_W * SPRITE_FRAMES,
-    SPRITE_H
-  ) as Phaser.Textures.CanvasTexture;
-  const ctx = ct.getContext();
-
-  for (let i = 0; i < SPRITE_FRAMES; i++) {
-    drawCharacter(
-      ctx, i,
-      toHex(bodyColor), toHex(coatColor), toHex(hairColor), toHex(skinColor)
-    );
-  }
-  ct.refresh();
-  // Register frames
-  for (let i = 0; i < SPRITE_FRAMES; i++) {
-    ct.add(i, 0, i * SPRITE_W, 0, SPRITE_W, SPRITE_H);
-  }
-}
-
-function createPixelTexture(scene: Phaser.Scene, key: string, color: number, w = 2, h = 2) {
-  const ct = scene.textures.createCanvas(key, w, h) as Phaser.Textures.CanvasTexture;
-  const ctx = ct.getContext();
-  ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
-  ctx.fillRect(0, 0, w, h);
-  ct.refresh();
+// ── Canvas helper: rounded rect (stroke) ──────────────────────────────────────
+function rrStroke(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  if (w < 0 || h < 0) return;
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+  ctx.stroke();
 }
 
 export class BootScene extends Phaser.Scene {
   constructor() { super({ key: SCENES.BOOT }); }
 
   preload() {
-    // Create loading bar
-    const { width, height } = this.scale;
-    const barBg = this.add.rectangle(width / 2, height / 2, 400, 20, 0x222233);
-    const bar = this.add.rectangle(width / 2 - 200, height / 2, 0, 20, 0x4ecdc4);
-    const label = this.add.text(width / 2, height / 2 - 30, 'Carregando...', {
-      fontFamily: "'Press Start 2P', monospace",
-      fontSize: '12px',
-      color: '#ffffff',
+    const W = this.scale.width, H = this.scale.height;
+    const barBg = this.add.graphics();
+    barBg.fillStyle(0x2c3e50, 1);
+    barBg.fillRoundedRect(W / 2 - 250, H / 2 - 15, 500, 30, 8);
+    const barFill = this.add.graphics();
+    const loadLabel = this.add.text(W / 2, H / 2 - 40, 'CARREGANDO HUAP...', {
+      fontFamily: 'monospace', fontSize: '14px', color: '#1abc9c',
     }).setOrigin(0.5);
-
     this.load.on('progress', (v: number) => {
-      bar.width = 400 * v;
-      bar.x = width / 2 - 200 + (400 * v) / 2;
+      barFill.clear();
+      barFill.fillStyle(0x1abc9c, 1);
+      barFill.fillRoundedRect(W / 2 - 248, H / 2 - 13, 496 * v, 26, 6);
     });
-
-    void barBg; void label;
+    void loadLabel;
   }
 
   create() {
-    // Tileset
     createTilesetTexture(this);
+    this.createPlayerSprite();
+    this.createNPCSprites();
+    this.createPortraits();
+    this.createPixelTexture();
+    this.scene.start(SCENES.MENU);
+  }
 
-    // Player sprite
-    createCharTexture(this, 'player', 0x2c6fad, 0x4a9ade, 0x4a3728, 0xf5c5a3);
+  // ── PLAYER SPRITE ─────────────────────────────────────────────────────────
+  private createPlayerSprite() {
+    const key = 'player';
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const ct = this.textures.createCanvas(key, SPR_W * FRAMES, SPR_H) as Phaser.Textures.CanvasTexture;
+    const ctx = ct.getContext();
 
-    // NPC sprites
-    for (const npc of NPC_DEFS as NPCDef[]) {
-      createCharTexture(this, npc.spriteKey, npc.bodyColor, npc.coatColor, npc.hairColor, 0xf5c5a3);
+    for (let dir = 0; dir < 4; dir++) {
+      for (let step = 0; step < 3; step++) {
+        this.drawCharacter(ctx, dir * 3 + step, dir, step, {
+          skin: '#f5c5a3', coat: '#1abc9c', coatDark: '#16a085',
+          hair: '#4a3728', shoe: '#2c3e50', role: 'nurse', isPlayer: true,
+        });
+      }
+    }
+    ct.refresh();
+    for (let i = 0; i < FRAMES; i++) ct.add(i, 0, i * SPR_W, 0, SPR_W, SPR_H);
+  }
+
+  // ── NPC SPRITES ───────────────────────────────────────────────────────────
+  private createNPCSprites() {
+    for (const def of NPC_DEFS) {
+      const key = def.spriteKey;
+      if (this.textures.exists(key)) this.textures.remove(key);
+      const ct = this.textures.createCanvas(key, SPR_W * FRAMES, SPR_H) as Phaser.Textures.CanvasTexture;
+      const ctx = ct.getContext();
+
+      const hex = (n: number) => `rgb(${(n >> 16) & 0xff},${(n >> 8) & 0xff},${n & 0xff})`;
+      const darker = (n: number, p = 0.2) => {
+        const r = Math.max(0, ((n >> 16) & 0xff) * (1 - p)) | 0;
+        const g = Math.max(0, ((n >> 8) & 0xff) * (1 - p)) | 0;
+        const b = Math.max(0, (n & 0xff) * (1 - p)) | 0;
+        return `rgb(${r},${g},${b})`;
+      };
+
+      for (let dir = 0; dir < 4; dir++) {
+        for (let step = 0; step < 3; step++) {
+          this.drawCharacter(ctx, dir * 3 + step, dir, step, {
+            skin: def.skinColor ? hex(def.skinColor) : '#f5c5a3',
+            coat: hex(def.coatColor),
+            coatDark: darker(def.coatColor),
+            hair: hex(def.hairColor),
+            shoe: '#2c3e50',
+            role: def.role,
+            isPlayer: false,
+          });
+        }
+      }
+      ct.refresh();
+      for (let i = 0; i < FRAMES; i++) ct.add(i, 0, i * SPR_W, 0, SPR_W, SPR_H);
+    }
+  }
+
+  // ── SHARED CHARACTER DRAWING ───────────────────────────────────────────────
+  private drawCharacter(
+    ctx: CanvasRenderingContext2D,
+    fi: number, dir: number, step: number,
+    c: { skin: string; coat: string; coatDark: string; hair: string; shoe: string; role: string; isPlayer: boolean },
+  ) {
+    const x = fi * SPR_W;
+    ctx.clearRect(x, 0, SPR_W, SPR_H);
+
+    const isDown = dir === 0, isUp = dir === 1;
+    const isLeft = dir === 2, isRight = dir === 3;
+    const isLR = isLeft || isRight;
+    const moving = step > 0;
+    const facing = isRight ? 1 : -1;
+
+    const legA = moving ? (step === 1 ? 2.5 : -2.5) : 0;
+    const legB = -legA;
+    const armA = moving ? (step === 1 ? 1.5 : -1.5) : 0;
+    const bob = moving ? 0.5 : 0;
+    const cx = x + SPR_W / 2;
+
+    // Shadow
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(cx, 39, 9, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Shoes
+    ctx.fillStyle = c.shoe;
+    if (isLR) {
+      rrFill(ctx, cx - 1 + facing * legA, 34 + bob, 9, 5, 2);
+      rrFill(ctx, cx - 8 - facing * legA, 34 + bob, 9, 5, 2);
+    } else {
+      rrFill(ctx, cx - 8, 34 + bob, 7, 5, 2);
+      rrFill(ctx, cx + 1, 34 + bob, 7, 5, 2);
     }
 
-    // NPC portrait backgrounds (64×64 colored panels)
-    for (const npc of NPC_DEFS as NPCDef[]) {
-      const ct = this.textures.createCanvas('portrait_' + npc.id, 64, 64) as Phaser.Textures.CanvasTexture;
-      const ctx = ct.getContext();
-      const c = '#' + npc.coatColor.toString(16).padStart(6, '0');
-      
-      // Detailed background
-      const gradient = ctx.createLinearGradient(0, 0, 0, 64);
-      gradient.addColorStop(0, '#fdfbfb');
-      gradient.addColorStop(1, '#ebedee');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 64, 64);
+    // Legs
+    ctx.fillStyle = c.coatDark;
+    if (isLR) {
+      ctx.fillRect(cx - 5, 25 + bob + legA, 5, 11);
+      ctx.fillRect(cx + 1, 25 + bob + legB, 5, 11);
+    } else {
+      ctx.fillRect(cx - 7, 25 + bob, 5, 11);
+      ctx.fillRect(cx + 2, 25 + bob, 5, 11);
+    }
 
-      // Sunburst pattern
-      ctx.save();
-      ctx.translate(32, 32);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-      for(let i=0; i<12; i++) {
-        ctx.rotate(Math.PI / 6);
-        ctx.beginPath();
-        ctx.moveTo(0, 0);
-        ctx.lineTo(10, 40);
-        ctx.lineTo(-10, 40);
-        ctx.fill();
+    // Torso
+    ctx.fillStyle = c.coat;
+    rrFill(ctx, cx - 9, 14 + bob, 18, 13, 3);
+
+    // V-neck underlay
+    if (!isUp) {
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.beginPath();
+      ctx.moveTo(cx - 2, 15 + bob); ctx.lineTo(cx + 2, 15 + bob);
+      ctx.lineTo(cx, 20 + bob); ctx.closePath(); ctx.fill();
+    }
+
+    // Doctor white lapels
+    if (c.role === 'doctor' && !isUp) {
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.beginPath();
+      ctx.moveTo(cx - 2, 14 + bob); ctx.lineTo(cx - 9, 20 + bob); ctx.lineTo(cx - 9, 14 + bob);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx + 2, 14 + bob); ctx.lineTo(cx + 9, 20 + bob); ctx.lineTo(cx + 9, 14 + bob);
+      ctx.closePath(); ctx.fill();
+    }
+
+    // Badge
+    if (!isUp && (c.role === 'nurse' || c.role === 'admin' || c.role === 'receptionist' || c.isPlayer)) {
+      ctx.fillStyle = '#e74c3c';
+      rrFill(ctx, cx - 8, 17 + bob, 5, 4, 1);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(cx - 7, 18 + bob, 3, 2);
+      ctx.fillRect(cx - 6, 17 + bob, 1, 4);
+    }
+
+    // Stethoscope
+    if (!isUp && (c.role === 'nurse' || c.role === 'doctor' || c.isPlayer)) {
+      ctx.strokeStyle = '#34495e'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, 20 + bob, 3.5, 0, Math.PI); ctx.stroke();
+    }
+
+    // Arms
+    ctx.fillStyle = c.coat;
+    if (isLR) {
+      rrFill(ctx, cx - 14, 15 + bob + armA, 6, 11, 2);
+      rrFill(ctx, cx + 9, 15 + bob - armA, 6, 11, 2);
+    } else {
+      rrFill(ctx, cx - 13, 16 + bob, 5, 10, 2);
+      rrFill(ctx, cx + 9, 16 + bob, 5, 10, 2);
+    }
+
+    // Clipboard (admin)
+    if (c.role === 'admin' && !isUp) {
+      const clipX = isRight ? cx + 9 : isLeft ? cx - 14 : cx + 9;
+      ctx.fillStyle = '#f1c40f';
+      rrFill(ctx, clipX, 16 + bob, 6, 7, 1);
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(clipX + 1, 18 + bob, 4, 1);
+      ctx.fillRect(clipX + 1, 20 + bob, 4, 1);
+    }
+
+    // Hands
+    ctx.fillStyle = c.skin;
+    if (isLR) {
+      ctx.beginPath(); ctx.arc(cx - 11, 26 + bob + armA, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 12, 26 + bob - armA, 3, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(cx - 11, 25 + bob, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(cx + 12, 25 + bob, 3, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Neck
+    ctx.fillStyle = c.skin;
+    ctx.fillRect(cx - 3, 10 + bob, 6, 5);
+
+    // Head
+    ctx.fillStyle = c.skin;
+    ctx.beginPath(); ctx.ellipse(cx, 6 + bob, 9, 10, 0, 0, Math.PI * 2); ctx.fill();
+
+    // Head shading
+    ctx.fillStyle = 'rgba(0,0,0,0.07)';
+    ctx.beginPath(); ctx.ellipse(cx + 6, 7 + bob, 3, 7, 0.3, 0, Math.PI * 2); ctx.fill();
+
+    // Hair
+    ctx.fillStyle = c.hair;
+    if (isDown) {
+      ctx.beginPath(); ctx.ellipse(cx, 1 + bob, 9, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(cx - 9, 1 + bob, 18, 5);
+      ctx.beginPath(); ctx.arc(cx, -3 + bob, 4.5, 0, Math.PI * 2); ctx.fill(); // bun
+    } else if (isUp) {
+      ctx.beginPath(); ctx.ellipse(cx, 1 + bob, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(cx - 9, 1 + bob, 18, 8);
+    } else {
+      const hdir = facing > 0 ? -1 : 1;
+      ctx.beginPath(); ctx.ellipse(cx + hdir * 2, 2 + bob, 9, 8, 0, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Face features
+    if (!isUp) {
+      ctx.fillStyle = '#2c3e50';
+      if (isDown) {
+        ctx.fillRect(cx - 5, 7 + bob, 3, 2); ctx.fillRect(cx + 2, 7 + bob, 3, 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(cx - 5, 7 + bob, 1, 1); ctx.fillRect(cx + 2, 7 + bob, 1, 1);
+        ctx.fillStyle = '#c47a5a';
+        ctx.fillRect(cx - 2, 11 + bob, 4, 1);
+        ctx.fillStyle = 'rgba(210,80,80,0.22)';
+        ctx.fillRect(cx - 8, 9 + bob, 4, 2); ctx.fillRect(cx + 4, 9 + bob, 4, 2); // blush
+      } else if (isLeft) {
+        ctx.fillRect(cx - 5, 7 + bob, 3, 2);
+      } else {
+        ctx.fillRect(cx + 2, 7 + bob, 3, 2);
       }
-      ctx.restore();
+    }
 
-      // Border
-      ctx.strokeStyle = c;
-      ctx.lineWidth = 4;
-      ctx.strokeRect(2, 2, 60, 60);
+    // Glasses (doctor)
+    if (c.role === 'doctor' && isDown) {
+      ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 0.8;
+      rrStroke(ctx, cx - 7, 6 + bob, 4, 3, 1);
+      rrStroke(ctx, cx + 3, 6 + bob, 4, 3, 1);
+      ctx.beginPath(); ctx.moveTo(cx - 3, 7 + bob); ctx.lineTo(cx + 3, 7 + bob); ctx.stroke();
+    }
 
-      // Draw mini character at center (scaled up)
-      ctx.save();
-      ctx.translate(20, 15); // Center the 24x28 sprite
-      ctx.scale(1.5, 1.5); // make it bigger
-      drawCharacter(ctx, 0, '#ffffff', c,
-        '#' + npc.hairColor.toString(16).padStart(6, '0'), '#f5c5a3');
-      ctx.restore();
+    // Nurse cap stripe
+    if ((c.role === 'nurse' || c.isPlayer) && !isUp) {
+      ctx.fillStyle = '#e74c3c';
+      ctx.fillRect(cx - 9, -0.5 + bob, 18, 2.5);
+    }
+  }
+
+  // ── PORTRAITS ─────────────────────────────────────────────────────────────
+  private createPortraits() {
+    for (const def of NPC_DEFS) {
+      const key = `portrait_${def.id}`;
+      if (this.textures.exists(key)) this.textures.remove(key);
+      const ct = this.textures.createCanvas(key, 90, 90) as Phaser.Textures.CanvasTexture;
+      const ctx = ct.getContext();
+
+      const hex = (n: number) => `rgb(${(n >> 16) & 0xff},${(n >> 8) & 0xff},${n & 0xff})`;
+      const skinC = def.skinColor ? hex(def.skinColor) : '#f5c5a3';
+      const coatC = hex(def.coatColor);
+      const hairC = hex(def.hairColor);
+      const r0 = (def.coatColor >> 16) & 0xff;
+      const g0 = (def.coatColor >> 8) & 0xff;
+      const b0 = def.coatColor & 0xff;
+
+      // BG
+      ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, 90, 90);
+      const bgGrad = ctx.createLinearGradient(0, 0, 90, 90);
+      bgGrad.addColorStop(0, `rgba(${r0},${g0},${b0},0.1)`);
+      bgGrad.addColorStop(1, `rgba(${r0},${g0},${b0},0.38)`);
+      ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, 90, 90);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(0,0,0,0.04)'; ctx.lineWidth = 0.5;
+      for (let j = 0; j < 90; j += 10) {
+        ctx.beginPath(); ctx.moveTo(j, 0); ctx.lineTo(j, 90); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(90, j); ctx.stroke();
+      }
+
+      // Shoulders
+      ctx.fillStyle = coatC;
+      ctx.beginPath();
+      ctx.moveTo(0, 90); ctx.lineTo(0, 58);
+      ctx.bezierCurveTo(5, 50, 35, 48, 45, 50);
+      ctx.bezierCurveTo(55, 48, 85, 50, 90, 58);
+      ctx.lineTo(90, 90); ctx.closePath(); ctx.fill();
+
+      // Doctor lapels
+      if (def.role === 'doctor') {
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath(); ctx.moveTo(42, 50); ctx.lineTo(0, 62); ctx.lineTo(0, 50); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(48, 50); ctx.lineTo(90, 62); ctx.lineTo(90, 50); ctx.closePath(); ctx.fill();
+      }
+
+      // V-neck
+      ctx.fillStyle = skinC;
+      ctx.beginPath(); ctx.moveTo(40, 50); ctx.lineTo(45, 60); ctx.lineTo(50, 50); ctx.closePath(); ctx.fill();
+
+      // Neck
+      ctx.fillStyle = skinC; rrFill(ctx, 38, 38, 14, 16, 4);
+
+      // Head
+      ctx.fillStyle = skinC;
+      ctx.beginPath(); ctx.ellipse(45, 25, 18, 22, 0, 0, Math.PI * 2); ctx.fill();
+
+      // Hair
+      ctx.fillStyle = hairC;
+      ctx.beginPath(); ctx.ellipse(45, 8, 18, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(27, 8, 36, 18);
+
+      // Eyes
+      ctx.fillStyle = '#2c3e50';
+      ctx.fillRect(36, 22, 5, 4); ctx.fillRect(49, 22, 5, 4);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(36, 22, 2, 2); ctx.fillRect(49, 22, 2, 2);
+
+      // Eyebrows
+      ctx.fillStyle = hairC;
+      ctx.fillRect(35, 18, 8, 2); ctx.fillRect(47, 18, 8, 2);
+
+      // Nose
+      ctx.fillStyle = 'rgba(160,80,50,0.3)';
+      ctx.beginPath(); ctx.arc(45, 30, 2, 0, Math.PI * 2); ctx.fill();
+
+      // Smile
+      ctx.strokeStyle = '#c47a5a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(45, 35, 6, 0.2, Math.PI - 0.2); ctx.stroke();
+
+      // Glasses (doctor)
+      if (def.role === 'doctor') {
+        ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1.5;
+        rrStroke(ctx, 34, 20, 9, 6, 2);
+        rrStroke(ctx, 47, 20, 9, 6, 2);
+        ctx.beginPath(); ctx.moveTo(43, 23); ctx.lineTo(47, 23); ctx.stroke();
+      }
+
+      // Stethoscope
+      if (def.role === 'doctor' || def.role === 'nurse') {
+        ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(45, 58, 8, 0, Math.PI); ctx.stroke();
+        ctx.beginPath(); ctx.arc(45, 66, 4, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // Badge
+      if (def.role === 'nurse' || def.role === 'admin' || def.role === 'receptionist') {
+        ctx.fillStyle = '#e74c3c';
+        rrFill(ctx, 28, 52, 14, 18, 2);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(30, 56, 10, 2); ctx.fillRect(30, 60, 8, 2); ctx.fillRect(30, 64, 10, 2);
+      }
 
       ct.refresh();
     }
 
-    // Generic pixel texture for physics bodies
-    createPixelTexture(this, 'pixel', 0xffffff);
+    // Player portrait
+    const pk = 'portrait_player';
+    if (!this.textures.exists(pk)) {
+      const ct = this.textures.createCanvas(pk, 90, 90) as Phaser.Textures.CanvasTexture;
+      const ctx = ct.getContext();
+      ctx.fillStyle = '#e0faf4'; ctx.fillRect(0, 0, 90, 90);
+      ctx.fillStyle = '#1abc9c';
+      ctx.beginPath(); ctx.moveTo(0, 90); ctx.lineTo(0, 58);
+      ctx.bezierCurveTo(5, 50, 35, 48, 45, 50);
+      ctx.bezierCurveTo(55, 48, 85, 50, 90, 58);
+      ctx.lineTo(90, 90); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#f5c5a3';
+      ctx.beginPath(); ctx.ellipse(45, 25, 18, 22, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(38, 38, 14, 14);
+      ctx.fillStyle = '#4a3728';
+      ctx.beginPath(); ctx.ellipse(45, 8, 18, 12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(27, 8, 36, 16);
+      ctx.beginPath(); ctx.arc(45, -4, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#2c3e50'; ctx.fillRect(36, 22, 5, 4); ctx.fillRect(49, 22, 5, 4);
+      ctx.fillStyle = '#e74c3c'; ctx.fillRect(27, 3, 36, 3);
+      ct.refresh();
+    }
+  }
 
-    // Minimap background
-    const mmW = MAP_COLS_CONST * 3;
-    const mmH = MAP_ROWS_CONST * 3;
-    const mmCt = this.textures.createCanvas('minimap_bg', mmW, mmH) as Phaser.Textures.CanvasTexture;
-    const mmCtx = mmCt.getContext();
-    mmCtx.fillStyle = '#111';
-    mmCtx.fillRect(0, 0, mmW, mmH);
-    mmCt.refresh();
-
-    this.scene.start(SCENES.MENU);
+  // ── PIXEL TEXTURE ─────────────────────────────────────────────────────────
+  private createPixelTexture() {
+    const key = 'pixel';
+    if (this.textures.exists(key)) this.textures.remove(key);
+    const ct = this.textures.createCanvas(key, TILE_SIZE, TILE_SIZE) as Phaser.Textures.CanvasTexture;
+    ct.getContext().fillStyle = '#fff'; ct.getContext().fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+    ct.refresh();
   }
 }
-
-const MAP_COLS_CONST = 50;
-const MAP_ROWS_CONST = 36;

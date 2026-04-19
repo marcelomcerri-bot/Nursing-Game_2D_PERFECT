@@ -1,12 +1,13 @@
 import * as Phaser from 'phaser';
-import { PLAYER_SPEED, Direction } from '../constants';
+import { PLAYER_SPEED, PLAYER_SPRINT_SPEED, Direction } from '../constants';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
   private direction: Direction = 'down';
   private isMoving = false;
   private stepTimer = 0;
   private stepFrame = 0;
-  private readonly STEP_INTERVAL = 200;
+  private readonly STEP_INTERVAL = 190;
+  private isSprinting = false;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(scene, x, y, 'player');
@@ -16,14 +17,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.setCollideWorldBounds(true);
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setSize(18, 20);
-    body.setOffset(3, 8);
-    this.setFrame(0); // down idle
+    body.setOffset(7, 18);
+    this.setFrame(0);
   }
 
-  move(
-    up: boolean, down: boolean, left: boolean, right: boolean,
-    delta: number
-  ) {
+  move(up: boolean, down: boolean, left: boolean, right: boolean, delta: number, sprint = false) {
     const body = this.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(0, 0);
 
@@ -33,15 +31,13 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     if (up)    dy -= 1;
     if (down)  dy += 1;
 
-    // Normalize diagonal
-    if (dx !== 0 && dy !== 0) {
-      dx *= 0.707;
-      dy *= 0.707;
-    }
+    if (dx !== 0 && dy !== 0) { dx *= 0.707; dy *= 0.707; }
 
-    body.setVelocity(dx * PLAYER_SPEED, dy * PLAYER_SPEED);
+    this.isSprinting = sprint && (dx !== 0 || dy !== 0);
+    const speed = this.isSprinting ? PLAYER_SPRINT_SPEED : PLAYER_SPEED;
+    body.setVelocity(dx * speed, dy * speed);
 
-    this.isMoving = (dx !== 0 || dy !== 0);
+    this.isMoving = dx !== 0 || dy !== 0;
 
     if (right && Math.abs(dx) >= Math.abs(dy)) this.direction = 'right';
     else if (left && Math.abs(dx) >= Math.abs(dy)) this.direction = 'left';
@@ -52,9 +48,10 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
   }
 
   private updateAnimation(delta: number) {
+    const interval = this.isSprinting ? 130 : this.STEP_INTERVAL;
     if (this.isMoving) {
       this.stepTimer += delta;
-      if (this.stepTimer >= this.STEP_INTERVAL) {
+      if (this.stepTimer >= interval) {
         this.stepTimer = 0;
         this.stepFrame = this.stepFrame === 1 ? 2 : 1;
       }
@@ -62,11 +59,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       this.stepFrame = 0;
       this.stepTimer = 0;
     }
-
     const dirBase: Record<Direction, number> = { down: 0, up: 3, left: 6, right: 9 };
     this.setFrame(dirBase[this.direction] + this.stepFrame);
   }
 
   getDirection(): Direction { return this.direction; }
   isCurrentlyMoving(): boolean { return this.isMoving; }
+  isCurrentlySprinting(): boolean { return this.isSprinting; }
 }

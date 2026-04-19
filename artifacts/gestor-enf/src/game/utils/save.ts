@@ -1,21 +1,19 @@
 import type { GameState } from '../data/gameData';
 
-const SAVE_KEY = 'gestorEnf2D_save';
+const SAVE_KEY = 'gestorEnf_huap_v3';
 
 export const DEFAULT_STATE: GameState = {
   prestige: 0,
   energy: 100,
+  stress: 0,
   completedMissions: [],
   missionProgress: {},
-  relationships: {
-    dr_oliveira: 0,
-    joao_farmaceutico: 0,
-    diretora_alves: 0,
-    enf_maria: 0,
-    ana_recepcionista: 0,
-  },
-  gameTime: 480, // 8h = start of morning shift (in minutes)
+  relationships: {},
+  gameTime: 480,
   day: 1,
+  crisisCount: 0,
+  decisionLog: [],
+  unlockedSectors: ['RECEPTION', 'CORRIDOR', 'EMERGENCY', 'PHARMACY'],
 };
 
 export function saveGame(state: GameState): void {
