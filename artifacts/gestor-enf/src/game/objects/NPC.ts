@@ -1,0 +1,157 @@
+import * as Phaser from 'phaser';
+import { TILE_SIZE, Direction } from '../constants';
+import type { NPCDef, GameState } from '../data/gameData';
+
+const NPC_SPEED = 60;
+
+export class NPC extends Phaser.Physics.Arcade.Sprite {
+  readonly def: NPCDef;
+  private direction: Direction = 'down';
+  private stepTimer = 0;
+  private stepFrame = 0;
+  private readonly STEP_INTERVAL = 280;
+  private waypointIdx = 0;
+  private waitTimer = 0;
+  private isWaiting = false;
+  private exclamationMark: Phaser.GameObjects.Text | null = null;
+  private nameLabel: Phaser.GameObjects.Text | null = null;
+  private hasMission = false;
+
+  constructor(scene: Phaser.Scene, def: NPCDef) {
+    const x = (def.startCol + 0.5) * TILE_SIZE;
+    const y = (def.startRow + 0.5) * TILE_SIZE;
+    super(scene, x, y, def.spriteKey);
+    this.def = def;
+
+    scene.add.existing(this);
+    scene.physics.add.existing(this);
+    this.setDepth(10);
+    const body = this.body as Phaser.Physics.Arcade.Body;
+    body.setSize(18, 20);
+    body.setOffset(3, 8);
+    body.setImmovable(false);
+    this.setFrame(0);
+
+    // Name label
+    this.nameLabel = scene.add.text(x, y - 22, def.name, {
+      fontFamily: "'VT323', monospace",
+      fontSize: '13px',
+      color: '#ffffff',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(20);
+
+    // Exclamation mark
+    this.exclamationMark = scene.add.text(x, y - 36, '!', {
+      fontFamily: "'Press Start 2P', monospace",
+      fontSize: '14px',
+      color: '#ffff00',
+      stroke: '#000000',
+      strokeThickness: 3,
+    }).setOrigin(0.5, 1).setDepth(21).setVisible(false);
+  }
+
+  setHasMission(has: boolean) {
+    this.hasMission = has;
+    this.exclamationMark?.setVisible(has);
+  }
+
+  updateMissionStatus(state: GameState) {
+    const anyActive = this.def.missionIds.some(id =>
+      !state.completedMissions.includes(id)
+    );
+    this.setHasMission(anyActive);
+  }
+
+  update(delta: number) {
+    if (this.def.patrolPoints.length < 2) return;
+
+    if (this.isWaiting) {
+      this.waitTimer -= delta;
+      if (this.waitTimer <= 0) {
+        this.isWaiting = false;
+        this.waypointIdx = (this.waypointIdx + 1) % this.def.patrolPoints.length;
+      }
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      body.setVelocity(0, 0);
+      this.updateFrame(delta, false);
+      this.updateLabels();
+      return;
+    }
+
+    const target = this.def.patrolPoints[this.waypointIdx];
+    const tx = (target.col + 0.5) * TILE_SIZE;
+    const ty = (target.row + 0.5) * TILE_SIZE;
+    const dx = tx - this.x;
+    const dy = ty - this.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 4) {
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      body.setVelocity(0, 0);
+      this.setX(tx);
+      this.setY(ty);
+      this.isWaiting = true;
+      this.waitTimer = Phaser.Math.Between(1200, 2800);
+      this.updateFrame(delta, false);
+    } else {
+      const vx = (dx / dist) * NPC_SPEED;
+      const vy = (dy / dist) * NPC_SPEED;
+      const body = this.body as Phaser.Physics.Arcade.Body;
+      body.setVelocity(vx, vy);
+
+      if (Math.abs(vx) > Math.abs(vy)) {
+        this.direction = vx > 0 ? 'right' : 'left';
+      } else {
+        this.direction = vy > 0 ? 'down' : 'up';
+      }
+      this.updateFrame(delta, true);
+    }
+
+    this.updateLabels();
+  }
+
+  private updateLabels() {
+    const offsetY = -this.displayHeight / 2;
+    this.nameLabel?.setPosition(this.x, this.y + offsetY - 2);
+    this.exclamationMark?.setPosition(this.x, this.y + offsetY - 14);
+
+    // Float the exclamation mark
+    if (this.exclamationMark?.visible) {
+      const floatY = Math.sin(this.scene.time.now / 400) * 3;
+      this.exclamationMark.setY(this.y + offsetY - 14 + floatY);
+    }
+  }
+
+  private updateFrame(delta: number, moving: boolean) {
+    if (moving) {
+      this.stepTimer += delta;
+      if (this.stepTimer >= this.STEP_INTERVAL) {
+        this.stepTimer = 0;
+        this.stepFrame = this.stepFrame === 1 ? 2 : 1;
+      }
+    } else {
+      this.stepFrame = 0;
+      this.stepTimer = 0;
+    }
+    const dirBase: Record<Direction, number> = { down: 0, up: 3, left: 6, right: 9 };
+    this.setFrame(dirBase[this.direction] + this.stepFrame);
+  }
+
+  getActiveMission(state: GameState) {
+    return this.def.missionIds.find(id => !state.completedMissions.includes(id));
+  }
+
+  getDialogue(state: GameState) {
+    for (const d of this.def.dialogues) {
+      if (!d.condition || d.condition(state)) return d;
+    }
+    return this.def.dialogues[this.def.dialogues.length - 1];
+  }
+
+  destroy(fromScene?: boolean) {
+    this.nameLabel?.destroy();
+    this.exclamationMark?.destroy();
+    super.destroy(fromScene);
+  }
+}
