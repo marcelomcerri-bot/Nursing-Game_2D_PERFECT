@@ -81,31 +81,31 @@ export function createTilesetTexture(scene: Phaser.Scene) {
   const ctx = ct.getContext();
 
   const tileColors: Record<number, string> = {
-    [TILE_ID.GARDEN]:    '#4a7c59',
-    [TILE_ID.WALL]:      '#2d3436',
-    [TILE_ID.CORRIDOR]:  '#d4c9b0',
-    [TILE_ID.ICU]:       '#a8d8ea',
-    [TILE_ID.PHARMACY]:  '#cba4d0',
-    [TILE_ID.ADMIN]:     '#f5b87a',
-    [TILE_ID.WARD]:      '#d0cce8',
-    [TILE_ID.BREAK]:     '#fceaaa',
-    [TILE_ID.NURSING]:   '#9edca0',
-    [TILE_ID.RECEPTION]: '#f8e080',
-    [TILE_ID.EMERGENCY]: '#f4a0a0',
+    [TILE_ID.GARDEN]:    '#68b379',
+    [TILE_ID.WALL]:      '#fcfaf2',
+    [TILE_ID.CORRIDOR]:  '#fdf2d5',
+    [TILE_ID.ICU]:       '#c1f0f4',
+    [TILE_ID.PHARMACY]:  '#e7c6f0',
+    [TILE_ID.ADMIN]:     '#ffd19a',
+    [TILE_ID.WARD]:      '#e2d9f3',
+    [TILE_ID.BREAK]:     '#ffec99',
+    [TILE_ID.NURSING]:   '#c2f0c6',
+    [TILE_ID.RECEPTION]: '#fff3b0',
+    [TILE_ID.EMERGENCY]: '#ffb5b5',
   };
 
   const shadeDark: Record<number, string> = {
-    [TILE_ID.GARDEN]:    '#3a6148',
-    [TILE_ID.WALL]:      '#1a1a2e',
-    [TILE_ID.CORRIDOR]:  '#c0b49a',
-    [TILE_ID.ICU]:       '#8cc4d8',
-    [TILE_ID.PHARMACY]:  '#b58cbe',
-    [TILE_ID.ADMIN]:     '#e09a5c',
-    [TILE_ID.WARD]:      '#bcb8d8',
-    [TILE_ID.BREAK]:     '#ecd898',
-    [TILE_ID.NURSING]:   '#80c882',
-    [TILE_ID.RECEPTION]: '#e0c860',
-    [TILE_ID.EMERGENCY]: '#e08888',
+    [TILE_ID.GARDEN]:    '#4c8b5b',
+    [TILE_ID.WALL]:      '#d9d3c5',
+    [TILE_ID.CORRIDOR]:  '#e0cfa5',
+    [TILE_ID.ICU]:       '#99cfd6',
+    [TILE_ID.PHARMACY]:  '#c7a3d1',
+    [TILE_ID.ADMIN]:     '#deab6c',
+    [TILE_ID.WARD]:      '#c4bae0',
+    [TILE_ID.BREAK]:     '#e8ce6f',
+    [TILE_ID.NURSING]:   '#98cf9d',
+    [TILE_ID.RECEPTION]: '#e8d57d',
+    [TILE_ID.EMERGENCY]: '#de8e8e',
   };
 
   for (let i = 0; i < NUM_TILES; i++) {
@@ -114,45 +114,103 @@ export function createTilesetTexture(scene: Phaser.Scene) {
     ctx.fillRect(x, 0, W, W);
 
     if (i === TILE_ID.WALL) {
-      // Brick pattern
-      ctx.fillStyle = '#1a1a2e';
+      // Wall: Warm beige with white tile pattern and wainscoting
+      ctx.fillStyle = '#fcfaf2';
+      ctx.fillRect(x, 0, W, W);
+      ctx.fillStyle = '#f0ebe1';
       for (let row = 0; row < 4; row++) {
         const ox = row % 2 === 0 ? 0 : 8;
         for (let bx = ox; bx < W; bx += 16) {
           ctx.fillRect(x + bx, row * 8, 14, 6);
         }
       }
-      // Highlight top/left edges
-      ctx.fillStyle = '#4a4a5e';
-      ctx.fillRect(x, 0, W, 1);
-      ctx.fillRect(x, 0, 1, W);
+      // Top molding
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x, 0, W, 3);
+      ctx.fillStyle = '#d9d3c5';
+      ctx.fillRect(x, 3, W, 1);
+      // Baseboard
+      ctx.fillStyle = '#c5b8a5';
+      ctx.fillRect(x, W - 6, W, 6);
+      ctx.fillStyle = '#a69785';
+      ctx.fillRect(x, W - 6, W, 1);
     } else if (i === TILE_ID.GARDEN) {
-      // Grass texture
-      ctx.fillStyle = shadeDark[i];
-      for (let dy = 2; dy < W; dy += 6) {
-        for (let dx = 2; dx < W; dx += 6) {
-          if ((dx + dy) % 12 === 0) {
-            ctx.fillRect(x + dx, dy, 2, 3);
-          }
-        }
+      // Garden: lush grass
+      ctx.fillStyle = '#68b379';
+      ctx.fillRect(x, 0, W, W);
+      ctx.fillStyle = '#4c8b5b';
+      // Grass blades
+      for (let j = 0; j < 15; j++) {
+        const gx = Math.random() * (W - 2);
+        const gy = Math.random() * (W - 4);
+        ctx.fillRect(x + gx, gy, 2, 4);
+        ctx.fillRect(x + gx + 2, gy + 1, 1, 3);
+      }
+      // Small flowers
+      if (Math.random() > 0.5) {
+        ctx.fillStyle = Math.random() > 0.5 ? '#ffb3ba' : '#fff9b0';
+        const fx = 4 + Math.random() * (W - 8);
+        const fy = 4 + Math.random() * (W - 8);
+        ctx.fillRect(x + fx, fy, 2, 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(x + fx + 1, fy + 1, 1, 1);
+      }
+    } else if (i === TILE_ID.ADMIN) {
+      // Admin: Warm wood floor
+      ctx.fillStyle = '#e8aa66';
+      ctx.fillRect(x, 0, W, W);
+      ctx.fillStyle = '#c48949';
+      for (let row = 0; row < 4; row++) {
+        ctx.fillRect(x, row * 8, W, 1); // Plank divider
+        // Wood grain
+        ctx.fillStyle = 'rgba(138, 88, 36, 0.2)';
+        ctx.fillRect(x + Math.random() * W/2, row * 8 + 2, W/2 + Math.random() * W/2, 1);
+        ctx.fillRect(x + Math.random() * W/3, row * 8 + 5, W/3 + Math.random() * W/2, 1);
+        ctx.fillStyle = '#c48949';
       }
     } else {
-      // Floor tiles: subtle grid + inner border
-      ctx.strokeStyle = shadeDark[i];
-      ctx.lineWidth = 0.5;
-      ctx.globalAlpha = 0.3;
-      // Grid lines
+      // Other floors: linoleum/tiles with specific patterns
+      const baseCol = tileColors[i];
+      const darkCol = shadeDark[i];
+      ctx.fillStyle = baseCol;
+      ctx.fillRect(x, 0, W, W);
+      
+      // Chequered / Diamond pattern
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
       ctx.beginPath();
-      ctx.moveTo(x + 16, 0); ctx.lineTo(x + 16, W);
-      ctx.moveTo(x, 16); ctx.lineTo(x + W, 16);
-      ctx.stroke();
-      ctx.globalAlpha = 1.0;
-      // Inner border
-      ctx.strokeStyle = shadeDark[i];
-      ctx.lineWidth = 1;
-      ctx.globalAlpha = 0.4;
-      ctx.strokeRect(x + 0.5, 0.5, W - 1, W - 1);
-      ctx.globalAlpha = 1.0;
+      ctx.moveTo(x + 16, 0); ctx.lineTo(x + W, 16);
+      ctx.lineTo(x + 16, W); ctx.lineTo(x, 16);
+      ctx.fill();
+
+      // Border highlight
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.fillRect(x, 0, W, 1);
+      ctx.fillRect(x, 0, 1, W);
+      
+      // Border shadow
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(x, W - 1, W, 1);
+      ctx.fillRect(x + W - 1, 0, 1, W);
+      
+      // Specific room motifs
+      if (i === TILE_ID.ICU) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillRect(x + 14, 10, 4, 12);
+        ctx.fillRect(x + 10, 14, 12, 4);
+      } else if (i === TILE_ID.PHARMACY) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.beginPath(); ctx.arc(x + 16, 16, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = darkCol;
+        ctx.fillRect(x + 14, 14, 4, 4);
+      } else if (i === TILE_ID.EMERGENCY) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(x + 4, 4, W - 8, W - 8);
+      } else if (i === TILE_ID.CORRIDOR) {
+        // Decorative border for corridor
+        ctx.fillStyle = 'rgba(200, 180, 140, 0.5)';
+        ctx.fillRect(x, 2, W, 2);
+        ctx.fillRect(x, W - 4, W, 2);
+      }
     }
   }
 

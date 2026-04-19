@@ -17,82 +17,166 @@ function drawCharacter(
   skinColor: string
 ) {
   const x = frameIdx * SPRITE_W;
-  const dir = Math.floor(frameIdx / 3); // 0=down,1=up,2=left,3=right
-  const step = frameIdx % 3;           // 0=idle,1=step1,2=step2
+  const dir = Math.floor(frameIdx / 3); // 0=down, 1=up, 2=left, 3=right
+  const step = frameIdx % 3;           // 0=idle, 1=step1, 2=step2
 
   ctx.clearRect(x, 0, SPRITE_W, SPRITE_H);
 
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  // Soft shadow
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
   ctx.beginPath();
-  ctx.ellipse(x + 12, SPRITE_H - 3, 7, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + 12, SPRITE_H - 2, 8, 3, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Legs (animated)
-  const legOffset = step === 0 ? 0 : (step === 1 ? -2 : 2);
-  ctx.fillStyle = bodyColor;
-  if (dir !== 1) { // not facing up (shoes visible)
-    ctx.fillRect(x + 7, SPRITE_H - 10, 4, 8 + (dir === 0 ? legOffset : 0));
-    ctx.fillRect(x + 13, SPRITE_H - 10, 4, 8 - (dir === 0 ? legOffset : 0));
-  } else {
-    ctx.fillRect(x + 7, SPRITE_H - 8, 4, 6);
-    ctx.fillRect(x + 13, SPRITE_H - 8, 4, 6);
+  // Helper for darkening hex colors
+  const darken = (color: string, amount: number) => {
+    let c = color.replace('#', '');
+    if (c.length === 3) c = c.split('').map(x => x + x).join('');
+    const num = parseInt(c, 16);
+    let r = (num >> 16) - amount;
+    let g = ((num >> 8) & 0x00FF) - amount;
+    let b = (num & 0x0000FF) - amount;
+    r = Math.max(0, r);
+    g = Math.max(0, g);
+    b = Math.max(0, b);
+    return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+  };
+
+  const skinDark = darken(skinColor, 30);
+  const coatDark = darken(coatColor, 30);
+  const pantsColor = '#4a5568';
+  const shoesColor = '#2d3748';
+
+  const bounce = step === 0 ? 0 : 1;
+  const legBounce1 = step === 1 ? -2 : 0;
+  const legBounce2 = step === 2 ? -2 : 0;
+
+  // Legs/Shoes
+  if (dir !== 1) { // down, left, right
+    // Left leg
+    ctx.fillStyle = pantsColor;
+    ctx.fillRect(x + 7, SPRITE_H - 10 + legBounce1, 4, 8 - legBounce1);
+    ctx.fillStyle = shoesColor;
+    ctx.fillRect(x + 7, SPRITE_H - 4 + legBounce1, 4, 3);
+    // Right leg
+    ctx.fillStyle = pantsColor;
+    ctx.fillRect(x + 13, SPRITE_H - 10 + legBounce2, 4, 8 - legBounce2);
+    ctx.fillStyle = shoesColor;
+    ctx.fillRect(x + 13, SPRITE_H - 4 + legBounce2, 4, 3);
+  } else { // up
+    ctx.fillStyle = pantsColor;
+    ctx.fillRect(x + 7, SPRITE_H - 10 + legBounce1, 4, 8 - legBounce1);
+    ctx.fillStyle = shoesColor;
+    ctx.fillRect(x + 7, SPRITE_H - 4 + legBounce1, 4, 3);
+    ctx.fillStyle = pantsColor;
+    ctx.fillRect(x + 13, SPRITE_H - 10 + legBounce2, 4, 8 - legBounce2);
+    ctx.fillStyle = shoesColor;
+    ctx.fillRect(x + 13, SPRITE_H - 4 + legBounce2, 4, 3);
   }
 
-  // Coat/body
+  // Torso / Coat
+  ctx.fillStyle = coatDark;
+  ctx.fillRect(x + 5, SPRITE_H - 20 - bounce, 14, 12);
   ctx.fillStyle = coatColor;
-  ctx.fillRect(x + 5, SPRITE_H - 20, 14, 12);
+  ctx.fillRect(x + 6, SPRITE_H - 20 - bounce, 12, 11);
 
-  // Coat collar
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + 10, SPRITE_H - 20, 4, 4);
+  // V-neck & Undershirt
+  if (dir === 0) {
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(x + 10, SPRITE_H - 20 - bounce, 4, 5);
+    // Stethoscope
+    ctx.fillStyle = '#718096'; // gray
+    ctx.fillRect(x + 9, SPRITE_H - 19 - bounce, 1, 4);
+    ctx.fillRect(x + 14, SPRITE_H - 19 - bounce, 1, 4);
+    ctx.fillRect(x + 10, SPRITE_H - 15 - bounce, 4, 1);
+    // Pocket
+    ctx.fillStyle = coatDark;
+    ctx.fillRect(x + 14, SPRITE_H - 14 - bounce, 3, 3);
+  } else if (dir === 2) {
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(x + 8, SPRITE_H - 20 - bounce, 2, 5);
+  } else if (dir === 3) {
+    ctx.fillStyle = bodyColor;
+    ctx.fillRect(x + 14, SPRITE_H - 20 - bounce, 2, 5);
+  }
 
   // Arms
   ctx.fillStyle = coatColor;
-  if (dir === 2 || dir === 3) { // side view - only one arm visible
-    const armSide = dir === 2 ? x + 2 : x + 18;
+  if (dir === 2) {
     const armOff = step === 0 ? 0 : (step === 1 ? 2 : -2);
-    ctx.fillRect(armSide, SPRITE_H - 20, 3, 8 + armOff);
+    ctx.fillRect(x + 9, SPRITE_H - 20 - bounce, 4, 8 + armOff);
+    // hand
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(x + 9, SPRITE_H - 12 - bounce + armOff, 4, 3);
+  } else if (dir === 3) {
+    const armOff = step === 0 ? 0 : (step === 1 ? 2 : -2);
+    ctx.fillRect(x + 11, SPRITE_H - 20 - bounce, 4, 8 + armOff);
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(x + 11, SPRITE_H - 12 - bounce + armOff, 4, 3);
   } else {
     const leftArmOff = step === 1 ? 2 : (step === 2 ? -2 : 0);
     const rightArmOff = -leftArmOff;
-    ctx.fillRect(x + 2, SPRITE_H - 20, 3, 8 + leftArmOff);
-    ctx.fillRect(x + 19, SPRITE_H - 20, 3, 8 + rightArmOff);
+    // Left arm
+    ctx.fillStyle = coatDark;
+    ctx.fillRect(x + 3, SPRITE_H - 20 - bounce, 3, 8 + leftArmOff);
+    ctx.fillStyle = coatColor;
+    ctx.fillRect(x + 4, SPRITE_H - 20 - bounce, 2, 7 + leftArmOff);
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(x + 3, SPRITE_H - 13 - bounce + leftArmOff, 3, 3);
+    
+    // Right arm
+    ctx.fillStyle = coatDark;
+    ctx.fillRect(x + 18, SPRITE_H - 20 - bounce, 3, 8 + rightArmOff);
+    ctx.fillStyle = coatColor;
+    ctx.fillRect(x + 18, SPRITE_H - 20 - bounce, 2, 7 + rightArmOff);
+    ctx.fillStyle = skinColor;
+    ctx.fillRect(x + 18, SPRITE_H - 13 - bounce + rightArmOff, 3, 3);
   }
 
-  // Neck
+  // Head Base
+  ctx.fillStyle = skinDark;
+  ctx.fillRect(x + 6, SPRITE_H - 30 - bounce, 12, 11);
   ctx.fillStyle = skinColor;
-  ctx.fillRect(x + 10, SPRITE_H - 22, 4, 3);
+  ctx.fillRect(x + 7, SPRITE_H - 30 - bounce, 10, 10);
 
-  // Head
-  ctx.fillStyle = skinColor;
-  ctx.fillRect(x + 7, SPRITE_H - 30, 10, 9);
+  // Eyes & Face
+  if (dir === 0) { // down
+    ctx.fillStyle = '#2d3748';
+    ctx.fillRect(x + 8, SPRITE_H - 25 - bounce, 2, 2); // left eye
+    ctx.fillRect(x + 14, SPRITE_H - 25 - bounce, 2, 2); // right eye
+    // blush
+    ctx.fillStyle = 'rgba(245, 101, 101, 0.4)';
+    ctx.fillRect(x + 7, SPRITE_H - 23 - bounce, 2, 1);
+    ctx.fillRect(x + 15, SPRITE_H - 23 - bounce, 2, 1);
+    // mouth
+    ctx.fillStyle = '#a0aec0';
+    ctx.fillRect(x + 11, SPRITE_H - 22 - bounce, 2, 1);
+  } else if (dir === 2) { // left
+    ctx.fillStyle = '#2d3748';
+    ctx.fillRect(x + 7, SPRITE_H - 25 - bounce, 2, 2);
+  } else if (dir === 3) { // right
+    ctx.fillStyle = '#2d3748';
+    ctx.fillRect(x + 15, SPRITE_H - 25 - bounce, 2, 2);
+  }
 
   // Hair
+  const hairDark = darken(hairColor, 20);
+  ctx.fillStyle = hairDark;
+  ctx.fillRect(x + 5, SPRITE_H - 31 - bounce, 14, 5);
   ctx.fillStyle = hairColor;
-  ctx.fillRect(x + 7, SPRITE_H - 30, 10, 4);
-  if (dir === 2) ctx.fillRect(x + 7, SPRITE_H - 30, 2, 9);
-  if (dir === 3) ctx.fillRect(x + 15, SPRITE_H - 30, 2, 9);
-
-  // Eyes
-  ctx.fillStyle = '#000';
-  if (dir === 0) { // facing down
-    ctx.fillRect(x + 9,  SPRITE_H - 24, 2, 2);
-    ctx.fillRect(x + 13, SPRITE_H - 24, 2, 2);
-  } else if (dir === 1) { // facing up (no eyes visible)
-    // show hair back
-  } else if (dir === 2) { // left
-    ctx.fillRect(x + 8, SPRITE_H - 24, 2, 2);
-  } else { // right
-    ctx.fillRect(x + 14, SPRITE_H - 24, 2, 2);
-  }
-
-  // Stethoscope accent (small detail)
-  if (dir === 0 || dir === 2 || dir === 3) {
-    ctx.fillStyle = '#888';
-    ctx.fillRect(x + 10, SPRITE_H - 18, 4, 1);
-    ctx.fillRect(x + 10, SPRITE_H - 17, 1, 3);
-    ctx.fillRect(x + 13, SPRITE_H - 17, 1, 3);
+  ctx.fillRect(x + 6, SPRITE_H - 32 - bounce, 12, 4);
+  
+  if (dir === 0) {
+    ctx.fillRect(x + 6, SPRITE_H - 28 - bounce, 2, 3);
+    ctx.fillRect(x + 16, SPRITE_H - 28 - bounce, 2, 3);
+  } else if (dir === 1) {
+    ctx.fillRect(x + 6, SPRITE_H - 28 - bounce, 12, 6);
+  } else if (dir === 2) {
+    ctx.fillRect(x + 6, SPRITE_H - 28 - bounce, 4, 5);
+    ctx.fillRect(x + 12, SPRITE_H - 28 - bounce, 4, 3);
+  } else if (dir === 3) {
+    ctx.fillRect(x + 14, SPRITE_H - 28 - bounce, 4, 5);
+    ctx.fillRect(x + 8, SPRITE_H - 28 - bounce, 4, 3);
   }
 }
 
@@ -172,13 +256,41 @@ export class BootScene extends Phaser.Scene {
       const ct = this.textures.createCanvas('portrait_' + npc.id, 64, 64) as Phaser.Textures.CanvasTexture;
       const ctx = ct.getContext();
       const c = '#' + npc.coatColor.toString(16).padStart(6, '0');
-      ctx.fillStyle = c;
+      
+      // Detailed background
+      const gradient = ctx.createLinearGradient(0, 0, 0, 64);
+      gradient.addColorStop(0, '#fdfbfb');
+      gradient.addColorStop(1, '#ebedee');
+      ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 64, 64);
-      ctx.fillStyle = 'rgba(0,0,0,0.1)';
-      ctx.fillRect(0, 48, 64, 16);
-      // Draw mini character at center
+
+      // Sunburst pattern
+      ctx.save();
+      ctx.translate(32, 32);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      for(let i=0; i<12; i++) {
+        ctx.rotate(Math.PI / 6);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(10, 40);
+        ctx.lineTo(-10, 40);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Border
+      ctx.strokeStyle = c;
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, 60, 60);
+
+      // Draw mini character at center (scaled up)
+      ctx.save();
+      ctx.translate(20, 15); // Center the 24x28 sprite
+      ctx.scale(1.5, 1.5); // make it bigger
       drawCharacter(ctx, 0, '#ffffff', c,
         '#' + npc.hairColor.toString(16).padStart(6, '0'), '#f5c5a3');
+      ctx.restore();
+
       ct.refresh();
     }
 

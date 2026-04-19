@@ -45,6 +45,7 @@ export class GameScene extends Phaser.Scene {
 
     this.buildTilemap();
     this.buildWalls();
+    this.buildEnvironmentalDecor();
     this.buildRoomDecals();
     this.spawnPlayer();
     this.spawnNPCs();
@@ -116,6 +117,89 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  private buildEnvironmentalDecor() {
+    // Add decorative elements for each room type based on map data
+    for (let r = 0; r < MAP_ROWS; r++) {
+      for (let c = 0; c < MAP_COLS; c++) {
+        const tid = this.mapData[r][c];
+        const x = c * TILE_SIZE;
+        const y = r * TILE_SIZE;
+        
+        // Random chance to spawn decor
+        if (Math.random() < 0.1) {
+           if (tid === 3) { // ICU
+              this.createEquipmentDecor(x, y, 0x3498db);
+           } else if (tid === 6) { // WARD
+              if (Math.random() < 0.5) this.createBedDecor(x, y);
+           } else if (tid === 5) { // ADMIN
+              this.createDeskDecor(x, y);
+           } else if (tid === 7) { // BREAK
+              this.createPlantDecor(x, y);
+           }
+        }
+      }
+    }
+  }
+
+  private createEquipmentDecor(x: number, y: number, color: number) {
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(color, 0.8);
+    g.fillRoundedRect(x + 4, y + 4, 16, 20, 2);
+    g.fillStyle(0xecf0f1, 0.9);
+    g.fillRect(x + 6, y + 6, 12, 8);
+    // Beeping light
+    const light = this.add.circle(x + 10, y + 18, 2, 0xe74c3c).setDepth(2);
+    this.tweens.add({
+      targets: light,
+      alpha: 0.2,
+      duration: 800,
+      yoyo: true,
+      repeat: -1
+    });
+  }
+
+  private createBedDecor(x: number, y: number) {
+    const g = this.add.graphics().setDepth(1);
+    // Shadow
+    g.fillStyle(0x000000, 0.2);
+    g.fillRoundedRect(x + 6, y + 6, 22, 34, 4);
+    // Bed frame
+    g.fillStyle(0xbdc3c7, 1);
+    g.fillRoundedRect(x + 4, y + 4, 20, 32, 2);
+    // Mattress/Sheets
+    g.fillStyle(0xecf0f1, 1);
+    g.fillRoundedRect(x + 6, y + 10, 16, 24, 2);
+    // Pillow
+    g.fillStyle(0xffffff, 1);
+    g.fillRoundedRect(x + 8, y + 6, 12, 6, 2);
+    // Blanket fold
+    g.fillStyle(0x3498db, 0.3);
+    g.fillRect(x + 6, y + 18, 16, 4);
+  }
+
+  private createDeskDecor(x: number, y: number) {
+    const g = this.add.graphics().setDepth(1);
+    g.fillStyle(0xd35400, 0.9);
+    g.fillRect(x + 2, y + 8, 28, 14);
+    // Computer screen
+    g.fillStyle(0x2c3e50, 1);
+    g.fillRect(x + 8, y + 4, 12, 8);
+    g.fillStyle(0x3498db, 0.8); // glow
+    g.fillRect(x + 9, y + 5, 10, 6);
+  }
+
+  private createPlantDecor(x: number, y: number) {
+    const g = this.add.graphics().setDepth(1);
+    // Pot
+    g.fillStyle(0xe67e22, 1);
+    g.fillRect(x + 10, y + 20, 12, 10);
+    // Leaves
+    g.fillStyle(0x2ecc71, 1);
+    g.fillCircle(x + 16, y + 16, 8);
+    g.fillCircle(x + 10, y + 12, 6);
+    g.fillCircle(x + 22, y + 14, 7);
+  }
+
   private buildRoomDecals() {
     const ROOM_LABEL_POSITIONS: { tileId: number; col: number; row: number; icon: string }[] = [
       { tileId: 3,  col: 11, row: 7,  icon: '🫀 UTI' },
@@ -172,10 +256,19 @@ export class GameScene extends Phaser.Scene {
   }
 
   private createAmbientOverlay() {
-    // Subtle vignette
-    const vignette = this.add.graphics().setDepth(100).setScrollFactor(0);
-    vignette.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.5, 0.5, 0, 0);
-    vignette.fillRect(0, 0, this.scale.width, this.scale.height);
+    // Vignette via canvas texture (works in Canvas and WebGL modes)
+    const W = this.scale.width;
+    const H = this.scale.height;
+    if (this.textures.exists('__vignette')) this.textures.remove('__vignette');
+    const ct = this.textures.createCanvas('__vignette', W, H) as Phaser.Textures.CanvasTexture;
+    const ctx = ct.getContext();
+    const radGrad = ctx.createRadialGradient(W/2, H/2, H * 0.3, W/2, H/2, H * 0.8);
+    radGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    radGrad.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = radGrad;
+    ctx.fillRect(0, 0, W, H);
+    ct.refresh();
+    this.add.image(W/2, H/2, '__vignette').setDepth(100).setScrollFactor(0);
   }
 
   // ─── SPAWN ────────────────────────────────────────────────────────────────

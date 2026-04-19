@@ -22,17 +22,17 @@ export const TILE_ID = {
 export type TileId = typeof TILE_ID[keyof typeof TILE_ID];
 
 export const ROOM_FLOOR_COLORS: Record<number, number> = {
-  [TILE_ID.GARDEN]:    0x4a7c59,
-  [TILE_ID.WALL]:      0x2d3436,
-  [TILE_ID.CORRIDOR]:  0xd4c9b0,
-  [TILE_ID.ICU]:       0xa8d8ea,
-  [TILE_ID.PHARMACY]:  0xcba4d0,
-  [TILE_ID.ADMIN]:     0xf5b87a,
-  [TILE_ID.WARD]:      0xd0cce8,
-  [TILE_ID.BREAK]:     0xfceaaa,
-  [TILE_ID.NURSING]:   0x9edca0,
-  [TILE_ID.RECEPTION]: 0xf8e080,
-  [TILE_ID.EMERGENCY]: 0xf4a0a0,
+  [TILE_ID.GARDEN]:    0x5c946e,
+  [TILE_ID.WALL]:      0x4a4a5a,
+  [TILE_ID.CORRIDOR]:  0xf4e8c1,
+  [TILE_ID.ICU]:       0xbdf2f6,
+  [TILE_ID.PHARMACY]:  0xebb9f8,
+  [TILE_ID.ADMIN]:     0xffd19a,
+  [TILE_ID.WARD]:      0xe2d9f3,
+  [TILE_ID.BREAK]:     0xfff2bd,
+  [TILE_ID.NURSING]:   0xb5f2b8,
+  [TILE_ID.RECEPTION]: 0xffef9e,
+  [TILE_ID.EMERGENCY]: 0xffb5b5,
 };
 
 export const ROOM_NAMES: Record<number, string> = {
